@@ -18,10 +18,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 
 from dotenv import find_dotenv, load_dotenv
+
 load_dotenv(find_dotenv())
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
+
 
 def load_and_split(json_path):
     """Loads OCR text from JSON and splits it into chunks that approximately span 2 pages"""
@@ -56,6 +60,7 @@ Next Page Beginning:
 Timeline of Events:
 """
 
+
 def generate_timeline(docs, query, window_size=100):
     llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     prompt_response = ChatPromptTemplate.from_template(template)
@@ -64,14 +69,27 @@ def generate_timeline(docs, query, window_size=100):
     page_numbers = []
 
     for i in range(len(docs)):
-        current_page = docs[i].page_content.replace('\n', ' ')
+        current_page = docs[i].page_content.replace("\n", " ")
 
-        previous_page_ending = docs[i-1].page_content.replace('\n', ' ')[-window_size:] if i > 0 else ""
-        next_page_beginning = docs[i+1].page_content.replace('\n', ' ')[:window_size] if i < len(docs) - 1 else ""
-        page_number = docs[i].metadata.get('page_number')
+        previous_page_ending = (
+            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
+        )
+        next_page_beginning = (
+            docs[i + 1].page_content.replace("\n", " ")[:window_size]
+            if i < len(docs) - 1
+            else ""
+        )
+        page_number = docs[i].metadata.get("page_number")
 
         if current_page:
-            response = response_chain.invoke({"question": query, "previous_page_ending": previous_page_ending, "current_page": current_page, "next_page_beginning": next_page_beginning})
+            response = response_chain.invoke(
+                {
+                    "question": query,
+                    "previous_page_ending": previous_page_ending,
+                    "current_page": current_page,
+                    "next_page_beginning": next_page_beginning,
+                }
+            )
             responses.append(response)
         else:
             responses.append("")
@@ -83,7 +101,6 @@ def generate_timeline(docs, query, window_size=100):
     return concatenated_responses, page_numbers
 
 
-
 def process_files_and_generate_pdfs(input_dir, output_dir):
     for filename in os.listdir(input_dir):
         if filename.endswith(".json"):
@@ -92,11 +109,13 @@ def process_files_and_generate_pdfs(input_dir, output_dir):
             query = "Generate a timeline of events based on the police report."
             concatenated_responses, _ = generate_timeline(docs, query)
 
-            output_pdf = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}.pdf")
+            output_pdf = os.path.join(
+                output_dir, f"{os.path.splitext(filename)[0]}.pdf"
+            )
             c = canvas.Canvas(output_pdf, pagesize=letter)
             y = 750
 
-            for line in concatenated_responses.split('\n'):
+            for line in concatenated_responses.split("\n"):
                 c.drawString(50, y, line)
                 y -= 20
                 if y < 50:
