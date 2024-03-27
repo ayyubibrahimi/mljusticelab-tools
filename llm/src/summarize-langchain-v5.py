@@ -96,18 +96,24 @@ def load_and_split(json_path):
 
 
 generate_template = """
-You are an AI assistant tasked with generating a detailed timeline of events based on the provided police report. Please extract relevant information from the report to create a chronological timeline.
+As an AI assistant, your task is to generate a concise and chronological summary of the events described in the provided police report excerpt. Use your understanding of the context and the following guidelines to create an accurate timeline:
 
-Previous Page Ending:
-{previous_page_ending}
+- Identify and extract key events, such as incidents, arrests, witness statements, and evidence collection. 
+- Determine the sequence of events based on the information provided, paying attention to temporal indicators like dates, times, and phrases such as "before", "after", and "during".
+- Focus on the most critical actions and developments that contribute to the overall narrative.
+- Use clear and concise language to describe each event in the timeline.
+- Begin the summary by setting the scene, introducing the people, property, and other relevant information before describing the actions.
+- Organize the events in true chronological order, based on when they actually occurred, rather than from the perspective of the writer or any individual involved.
+- After narrating the main events, include additional facts such as evidence collected, pictures taken, witness statements, recovered property, and any other necessary details.
+- Do not infer any details that are not explicitly stated. If the text is too poorly OCR'd to derive an event, ignore this piece of the report. 
 
-Current Page:
-{current_page}
+Given the context from the previous page ending, the current page, and the next page beginning, generate a summary of the events in chronological order.
 
-Next Page Beginning:
-{next_page_beginning}
+Previous Page Ending: {previous_page_ending}
+Current Page: {current_page}
+Next Page Beginning: {next_page_beginning}
 
-Timeline of Events:
+Chronological Event Summary:
 """
 
 
@@ -142,31 +148,43 @@ def generate_timeline(docs, query, window_size=500):
             response["page_content"] = processed_content
         output.append(response)
 
+
+    # Write the output to a file named "output" in the "../data/" directory
+    with open("../data/output/output.json", "w") as file:
+        json.dump(output, file, indent=2)
+
     print("Generated page summaries:", output)
 
     return output
 
-
 combine_template = """
-You are an AI assistant tasked with combining two summaries of a police report into a single, coherent summary. The summaries may contain overlapping information, so please consolidate and organize the information chronologically.
+As an AI assistant, your task is to combine the provided summaries of a police report into a single, comprehensive, and chronological summary. Please follow these guidelines:
 
-Summary 1:
-{summary1}
+1. Carefully review all the summaries to identify and include all relevant information, such as:
+   - Key events and actions taken by individuals involved
+   - Dates and times of significant occurrences
+   - Locations where events took place
+   - Important details about the crime, investigation, and evidence
+   - Relevant background information about the individuals involved
 
-Summary 2:
-{summary2}
+2. Organize the information in a clear and logical timeline, ensuring that the sequence of events is accurately represented.
 
-Combined Summary:
+3. Maintain a coherent narrative flow throughout the combined summary, linking related events and details to provide a comprehensive overview of the case.
+
+4. Use concise and precise language to convey the information effectively, avoiding repetition or redundancy.
+
+5. Ensure that all critical information from the individual summaries is included in the final combined summary, without omitting any significant details.
+
+6. If there are any discrepancies or contradictions between the summaries, use your best judgment to resolve them based on the overall context and the reliability of the information sources.
+
+7. Aim to create a detailed and informative summary that captures the full scope of the case, including the crime, investigation, arrests, and any relevant background information.
+
+Summary 1: {summary1}
+
+Summary 2: {summary2}
+
+Combined Comprehensive Summary:
 """
-
-
-def write_json_output(combined_summary, sentence_to_page, output_file_path):
-    output_data = []
-    for sentence, page_number in sentence_to_page.items():
-        output_data.append({"sentence": sentence, "page_number": page_number})
-
-    with open(output_file_path, "w") as file:
-        json.dump(output_data, file, indent=4)
 
 
 def combine_summaries(summaries):
@@ -223,6 +241,15 @@ def process_summaries(summaries):
     sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
     print("Sentence to page mapping:", sentence_to_page)
     return combined_summary, sentence_to_page
+
+
+def write_json_output(combined_summary, sentence_to_page, output_file_path):
+    output_data = []
+    for sentence, page_number in sentence_to_page.items():
+        output_data.append({"sentence": sentence, "page_number": page_number})
+
+    with open(output_file_path, "w") as file:
+        json.dump(output_data, file, indent=4)
 
 
 if __name__ == "__main__":
