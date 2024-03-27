@@ -11,9 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+
 # nltk.download('stopwords')
 
 load_dotenv(find_dotenv())
@@ -242,6 +240,35 @@ def process_summaries(summaries):
     print("Sentence to page mapping:", sentence_to_page)
     return combined_summary, sentence_to_page
 
+cross_reference_template = """
+As an AI assistant, your task is to compare the ground truth summary with the summary of summaries and identify any missing information. If there are any key events, details, or relevant information present in the ground truth summary but not in the summary of summaries, please augment the summary of summaries to include the missing information. Ensure that the augmented summary maintains a coherent narrative flow and chronological order.
+
+Groundtruth Summary:
+{groundtruth}
+
+Summary of Summaries:
+{summary_of_summaries}
+
+Augmented Summary of Summaries:
+"""
+
+def cross_reference_summaries(groundtruth, summary, summaries):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
+    response_chain = prompt_response | llm | StrOutputParser()
+
+    response = response_chain.invoke({"groundtruth": groundtruth, "summary_of_summaries": summary})
+
+    print("Augmented Summary:", response)
+
+    augmented_summary = {"page_content": response}
+    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
+    print("Updated Sentence to Page Mapping:", sentence_to_page)
+
+    return response, sentence_to_page
+
+
+
 
 
 comparison_template = """
@@ -291,10 +318,12 @@ if __name__ == "__main__":
             page_summaries = generate_timeline(docs, query)
             combined_summary, sentence_to_page = process_summaries(page_summaries)
 
-            comparison_score = compare_summaries(page_summaries, combined_summary)
+            augmented_summary, updated_sentence_to_page = cross_reference_summaries(page_summaries, combined_summary, page_summaries)
 
+            comparison_score = compare_summaries(page_summaries, combined_summary)
 
             output_json_path = os.path.join(
                 output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
             )
-            write_json_output(combined_summary, sentence_to_page, output_json_path)
+            write_json_output(augmented_summary, updated_sentence_to_page, output_json_path)
+
