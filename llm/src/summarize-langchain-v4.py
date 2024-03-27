@@ -10,60 +10,75 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+# nltk.download('stopwords')
 
 load_dotenv(find_dotenv())
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+
 logger = logging.getLogger(__name__)
 
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_lg")
 tokenizer = AutoTokenizer.from_pretrained("dslim/bert-base-NER")
 model = AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER")
+
 ner_pipeline = pipeline(
-    "ner", model=model, tokenizer=tokenizer, aggregation_strategy="simple"
+    "ner", model=model, tokenizer=tokenizer, aggregation_strategy="max"
 )
 sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+def preprocess_text(text):
+    # text = text.lower()
+    text = re.sub(r'\s+', ' ', text)
+    return text
 
-def augment_named_entities(text):
+
+def augment_named_entities(text, threshold=0.9):
+    text = preprocess_text(text)
     doc = nlp(text)
     ner_results = ner_pipeline(text)
     entity_map = {}
     for entity in ner_results:
-        start, end, label = entity["start"], entity["end"], entity["entity_group"]
-        entity_map[(start, end)] = label
+        start, end, label, score = entity["start"], entity["end"], entity["entity_group"], entity["score"]
+        if score >= threshold:
+            entity_map[(start, end)] = label
+
+    label_mapping = {
+        "DATE": "Date",
+        "PERSON": "Person",
+        "EVENT": "Event",
+        "FAC": "Facility",
+        "ORG": "Organization",
+        "LAW": "Law",
+        "PRODUCT": "Product",
+        "TIME": "Time",
+        "LOC": "Location",
+    }
 
     augmented_text = ""
     prev_end = 0
     for ent in doc.ents:
-        if ent.label_ in [
-            "DATE",
-            "PERSON",
-            "EVENT",
-            "FAC",
-            "ORG",
-            "LAW",
-            "GPE",
-            "PRODUCT",
-            "NORP",
-            "WORK_OF_ART",
-            "TIME",
-            "LOC",
-        ]:
+        if ent.label_ in label_mapping:
+            label = label_mapping[ent.label_]
             augmented_text += text[prev_end : ent.start_char]
-            augmented_text += f"{ent.text}: {ent.label_}"
+            augmented_text += f"({ent.text}: {label})"
             prev_end = ent.end_char
         elif (ent.start_char, ent.end_char) in entity_map:
             label = entity_map[(ent.start_char, ent.end_char)]
             augmented_text += text[prev_end : ent.start_char]
-            augmented_text += f"{ent.text}: {label}"
+            augmented_text += f"({ent.text}: {label})"
             prev_end = ent.end_char
 
     augmented_text += text[prev_end:]
     print(augmented_text)
     return augmented_text
+
 
 
 def load_and_split(json_path):
