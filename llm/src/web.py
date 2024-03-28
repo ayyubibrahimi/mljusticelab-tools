@@ -12,6 +12,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 from langchain_anthropic import ChatAnthropic
+import sys
 
 # nltk.download('stopwords')
 
@@ -357,55 +358,51 @@ def write_json_output(combined_summary, sentence_to_page, output_file_path):
 
 
 if __name__ == "__main__":
-    input_directory = "../../ocr/data/output"
-    output_directory = "../data/output"
-    for filename in os.listdir(input_directory):
-        if filename.endswith(".json"):
-            json_path = os.path.join(input_directory, filename)
-            docs = load_and_split(json_path)
-            query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_timeline(docs, query)
-            print(page_summaries)
+    if len(sys.argv) < 2:
+        print("Please provide the path to the JSON file as a command-line argument.")
+        sys.exit(1)
 
-            max_iterations = 3
-            iteration = 0
-            while iteration < max_iterations:
-                logger.info(
-                    f"Processing {filename} - Iteration {iteration + 1}/{max_iterations}"
-                )
+    input_file_path = sys.argv[1]
 
-                combined_summary, sentence_to_page = process_summaries(page_summaries)
-                augmented_summary, updated_sentence_to_page = cross_reference_summaries(
-                    page_summaries, combined_summary, page_summaries
-                )
+    try:
+        docs = load_and_split(input_file_path)
+        query = "Generate a timeline of events based on the police report."
+        page_summaries = generate_timeline(docs, query)
 
-                comparison_score_text = compare_summaries(
-                    page_summaries, combined_summary
-                )
-                score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
-                if score_match:
-                    comparison_score = int(score_match.group(1))
-                else:
-                    comparison_score = int(comparison_score_text.strip())
+        max_iterations = 3
+        iteration = 0
+        while iteration < max_iterations:
+            logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
 
-                logger.info(
-                    f"Comparison score for {filename} - Iteration {iteration + 1}: {comparison_score}"
-                )
-
-                if comparison_score >= 8:
-                    logger.info(
-                        f"Satisfactory score achieved for {filename} - Iteration {iteration + 1}"
-                    )
-                    break
-
-                iteration += 1
-
-            if iteration == max_iterations:
-                logger.warning(f"Maximum iterations reached for {filename}")
-
-            output_json_path = os.path.join(
-                output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
+            combined_summary, sentence_to_page = process_summaries(page_summaries)
+            augmented_summary, updated_sentence_to_page = cross_reference_summaries(
+                page_summaries, combined_summary, page_summaries
             )
-            write_json_output(
-                augmented_summary, updated_sentence_to_page, output_json_path
-            )
+
+            comparison_score_text = compare_summaries(page_summaries, combined_summary)
+            score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
+            if score_match:
+                comparison_score = int(score_match.group(1))
+            else:
+                comparison_score = int(comparison_score_text.strip())
+
+            logger.info(f"Comparison score - Iteration {iteration + 1}: {comparison_score}")
+
+            if comparison_score >= 8:
+                logger.info(f"Satisfactory score achieved - Iteration {iteration + 1}")
+                break
+
+            iteration += 1
+
+        if iteration == max_iterations:
+            logger.warning("Maximum iterations reached")
+
+        output_json_path = os.path.join("output", "summary.json")
+        write_json_output(augmented_summary, updated_sentence_to_page, output_json_path)
+
+        print(json.dumps({"success": True, "message": "JSON processed successfully"}))
+
+    except Exception as e:
+        logger.error(f"Error processing JSON: {str(e)}")
+        print(json.dumps({"success": False, "message": "Failed to process JSON"}))
+        sys.exit(1)
