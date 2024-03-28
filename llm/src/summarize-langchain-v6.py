@@ -285,12 +285,11 @@ Augmented Summary of Summaries:
 
 def cross_reference_summaries(groundtruth, summary, summaries):
     # llm = ChatOpenAI(model_name="gpt-4-0125-preview")
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", anthropic_api_key="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")
-    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229", anthropic_api_key="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")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307",)
+    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
 
     llm = ChatAnthropic(
         model_name="claude-3-opus-20240229",
-        anthropic_api_key="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",
     )
 
     prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
