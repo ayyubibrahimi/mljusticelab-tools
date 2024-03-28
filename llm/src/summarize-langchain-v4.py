@@ -14,6 +14,7 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+
 # nltk.download('stopwords')
 
 load_dotenv(find_dotenv())
@@ -33,9 +34,10 @@ ner_pipeline = pipeline(
 )
 sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+
 def preprocess_text(text):
     # text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     return text
 
 
@@ -45,7 +47,12 @@ def augment_named_entities(text, threshold=0.9):
     ner_results = ner_pipeline(text)
     entity_map = {}
     for entity in ner_results:
-        start, end, label, score = entity["start"], entity["end"], entity["entity_group"], entity["score"]
+        start, end, label, score = (
+            entity["start"],
+            entity["end"],
+            entity["entity_group"],
+            entity["score"],
+        )
         if score >= threshold:
             entity_map[(start, end)] = label
 
@@ -78,7 +85,6 @@ def augment_named_entities(text, threshold=0.9):
     augmented_text += text[prev_end:]
     print(augmented_text)
     return augmented_text
-
 
 
 def load_and_split(json_path):

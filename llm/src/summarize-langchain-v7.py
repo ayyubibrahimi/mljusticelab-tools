@@ -11,9 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+from langchain_anthropic import ChatAnthropic
 
 # nltk.download('stopwords')
 
@@ -83,7 +81,7 @@ def augment_named_entities(text, threshold=0.9):
             prev_end = ent.end_char
 
     augmented_text += text[prev_end:]
-    print(augmented_text)
+    # print(augmented_text)
     return augmented_text
 
 
@@ -124,7 +122,8 @@ Chronological Event Summary:
 
 
 def generate_timeline(docs, query, window_size=500):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(generate_template)
     response_chain = prompt_response | llm | StrOutputParser()
     output = []
@@ -158,7 +157,7 @@ def generate_timeline(docs, query, window_size=500):
     with open("../data/output/output.json", "w") as file:
         json.dump(output, file, indent=2)
 
-    print("Generated page summaries:", output)
+    # print("Generated page summaries:", output)
 
     return output
 
@@ -194,8 +193,10 @@ Combined Comprehensive Summary:
 
 
 def combine_summaries(summaries):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(combine_template)
+
     response_chain = prompt_response | llm | StrOutputParser()
 
     combined_summary = summaries[0]["page_content"]
@@ -213,7 +214,7 @@ def combine_summaries(summaries):
             summaries[i].get("page_numbers", [summaries[i].get("page_number")])
         )
 
-    print("Combined summary content:", combined_summary)
+    # print("Combined summary content:", combined_summary)
 
     return {"page_content": combined_summary, "page_numbers": combined_page_numbers}
 
@@ -245,8 +246,66 @@ def map_sentences_to_pages(combined_summary, summaries):
 def process_summaries(summaries):
     combined_summary = combine_summaries(summaries)
     sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
-    print("Sentence to page mapping:", sentence_to_page)
+    # print("Sentence to page mapping:", sentence_to_page)
     return combined_summary, sentence_to_page
+
+
+cross_reference_template = """
+As an AI assistant, your task is to compare the ground truth summary with the summary of summaries and identify any missing or inconsistent information. Please follow these steps to augment the summary of summaries:
+
+Carefully review the ground truth summary and identify all key events, details, and relevant information, such as:
+Significant actions taken by individuals involved
+Precise dates, times, and locations of events
+Critical details about the crime, investigation, arrests, and evidence
+Important background information about the individuals involved
+Compare the identified key information from the ground truth summary with the content of the summary of summaries.
+For each piece of key information from the ground truth summary, determine if it is: a) Present in the summary of summaries and consistent b) Present in the summary of summaries but inconsistent or incomplete c) Missing from the summary of summaries entirely
+Based on your analysis, augment the summary of summaries:
+For information that is present and consistent, no changes are needed.
+For information that is present but inconsistent or incomplete, update the relevant parts of the summary of summaries to match the ground truth.
+For information that is missing, add it to the summary of summaries in the most appropriate location to maintain chronological order and narrative flow.
+Ensure that the augmented summary of summaries:
+Includes all the key information from the ground truth summary
+Maintains a coherent structure and logical flow
+Uses clear and concise language
+Is free of inconsistencies or contradictions
+If there is any information in the summary of summaries that directly conflicts with the ground truth summary, prioritize the information from the ground truth summary.
+
+After augmenting the summary of summaries, review it once more to ensure it is a comprehensive, accurate, and well-structured representation of the events described in the ground truth summary.
+
+Your augmented summary must be at least 1000 tokens in length. 
+
+Groundtruth Summary:
+{groundtruth}
+
+Summary of Summaries:
+{summary_of_summaries}
+
+Augmented Summary of Summaries:
+"""
+
+
+def cross_reference_summaries(groundtruth, summary, summaries):
+    # llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+
+    llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+
+    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
+    response_chain = prompt_response | llm | StrOutputParser()
+
+    response = response_chain.invoke(
+        {"groundtruth": groundtruth, "summary_of_summaries": summary}
+    )
+
+    # print("Augmented Summary:", response)
+
+    augmented_summary = {"page_content": response}
+    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
+    # print("Updated Sentence to Page Mapping:", sentence_to_page)
+
+    return response, sentence_to_page
 
 
 comparison_template = """
@@ -267,7 +326,9 @@ Limit your response to the score.
 
 
 def compare_summaries(groundtruth, summary):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(comparison_template)
     response_chain = prompt_response | llm | StrOutputParser()
 
@@ -298,11 +359,47 @@ if __name__ == "__main__":
             docs = load_and_split(json_path)
             query = "Generate a timeline of events based on the police report."
             page_summaries = generate_timeline(docs, query)
-            combined_summary, sentence_to_page = process_summaries(page_summaries)
+            print(page_summaries)
 
-            comparison_score = compare_summaries(page_summaries, combined_summary)
+            max_iterations = 3
+            iteration = 0
+            while iteration < max_iterations:
+                logger.info(
+                    f"Processing {filename} - Iteration {iteration + 1}/{max_iterations}"
+                )
+
+                combined_summary, sentence_to_page = process_summaries(page_summaries)
+                augmented_summary, updated_sentence_to_page = cross_reference_summaries(
+                    page_summaries, combined_summary, page_summaries
+                )
+
+                comparison_score_text = compare_summaries(
+                    page_summaries, combined_summary
+                )
+                score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
+                if score_match:
+                    comparison_score = int(score_match.group(1))
+                else:
+                    comparison_score = int(comparison_score_text.strip())
+
+                logger.info(
+                    f"Comparison score for {filename} - Iteration {iteration + 1}: {comparison_score}"
+                )
+
+                if comparison_score >= 8:
+                    logger.info(
+                        f"Satisfactory score achieved for {filename} - Iteration {iteration + 1}"
+                    )
+                    break
+
+                iteration += 1
+
+            if iteration == max_iterations:
+                logger.warning(f"Maximum iterations reached for {filename}")
 
             output_json_path = os.path.join(
                 output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
             )
-            write_json_output(combined_summary, sentence_to_page, output_json_path)
+            write_json_output(
+                augmented_summary, updated_sentence_to_page, output_json_path
+            )
