@@ -342,8 +342,6 @@ def compare_summaries(groundtruth, summary):
         {"groundtruth": groundtruth, "summary_of_summaries": summary}
     )
 
-    print(response)
-
     return response
 
 

@@ -306,7 +306,7 @@ def cross_reference_summaries(groundtruth, summary, summaries):
         {"groundtruth": groundtruth, "summary_of_summaries": summary}
     )
 
-    print("Augmented Summary:", response)
+    # print("Augmented Summary:", response)
 
     augmented_summary = {"page_content": response}
     sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
@@ -343,18 +343,21 @@ def compare_summaries(groundtruth, summary):
         {"groundtruth": groundtruth, "summary_of_summaries": summary}
     )
 
-    print(response)
-
     return response
 
-
-def write_json_output(combined_summary, sentence_to_page, output_file_path):
+def write_json_output(combined_summary, sentence_to_page):
     output_data = []
-    for sentence, page_number in sentence_to_page.items():
-        output_data.append({"sentence": sentence, "page_number": page_number})
+    for sentence in nlp(combined_summary).sents:
+        sentence_text = str(sentence).strip()
+        page_number = sentence_to_page.get(sentence_text)
+        output_data.append({"sentence": sentence_text, "page_number": page_number})
 
-    # with open(output_file_path, "w") as file:
-    #     json.dump(output_data, file, indent=4)
+    # Convert the output data to JSON string
+    json_output = json.dumps(output_data)
+
+    # Print the JSON output
+    print(json_output, end='')
+
 
 
 if __name__ == "__main__":
@@ -372,7 +375,7 @@ if __name__ == "__main__":
         max_iterations = 3
         iteration = 0
         while iteration < max_iterations:
-            logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
+            # logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
 
             combined_summary, sentence_to_page = process_summaries(page_summaries)
             augmented_summary, updated_sentence_to_page = cross_reference_summaries(
@@ -386,21 +389,18 @@ if __name__ == "__main__":
             else:
                 comparison_score = int(comparison_score_text.strip())
 
-            logger.info(f"Comparison score - Iteration {iteration + 1}: {comparison_score}")
+            # logger.info(f"Comparison score - Iteration {iteration + 1}: {comparison_score}")
 
             if comparison_score >= 8:
-                logger.info(f"Satisfactory score achieved - Iteration {iteration + 1}")
+                # logger.info(f"Satisfactory score achieved - Iteration {iteration + 1}")
+                write_json_output(augmented_summary, updated_sentence_to_page)
                 break
 
             iteration += 1
 
         if iteration == max_iterations:
             logger.warning("Maximum iterations reached")
-
-        output_json_path = os.path.join("output", "summary.json")
-        write_json_output(augmented_summary, updated_sentence_to_page, output_json_path)
-
-        print(json.dumps({"success": True, "message": "JSON processed successfully"}))
+            write_json_output(augmented_summary, updated_sentence_to_page)
 
     except Exception as e:
         logger.error(f"Error processing JSON: {str(e)}")

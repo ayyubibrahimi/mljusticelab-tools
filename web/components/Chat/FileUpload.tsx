@@ -14,19 +14,26 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled }) => {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     if (!file) {
-      alert('Please select a JSON file to upload.');
+      alert('Please select a PDF file to upload.');
       return;
     }
-
     onFileUpload(file);
   };
 
   return (
     <form onSubmit={handleSubmit} className="mb-8">
-      <input type="file" accept=".json" onChange={handleFileChange} className="mb-4" />
-      <button type="submit" disabled={disabled} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+      <input
+        type="file"
+        accept=".pdf"
+        onChange={handleFileChange}
+        className="mb-4"
+      />
+      <button
+        type="submit"
+        disabled={disabled}
+        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+      >
         {disabled ? 'Processing...' : 'Upload and Process'}
       </button>
     </form>
