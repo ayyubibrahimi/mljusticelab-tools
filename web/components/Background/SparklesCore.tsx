@@ -4,7 +4,6 @@ import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import { cn } from "@/utils/cn";
 import { motion, useAnimation } from "framer-motion";
-import UploadInterface from '../Upload/UploadInterface';
 import { Montserrat } from 'next/font/google';
 
 const montserrat = Montserrat({ subsets: ['latin'] });
@@ -473,7 +472,6 @@ export const SparklesCore = (props: ParticlesProps) => {
           }}
         />
       )}
-      < UploadInterface />
     </motion.div>
   );
 };

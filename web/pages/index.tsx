@@ -1,5 +1,6 @@
 import React from 'react';
 import { SparklesCore } from '../components/Background/SparklesCore';
+import UploadInterface from '../components/Upload/UploadInterface';
 
 export default function Home() {
   return (
@@ -14,6 +15,9 @@ export default function Home() {
           particleDensity={200}
           className="h-full"
         />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <UploadInterface />
+        </div>
       </div>
     </div>
   );
