@@ -1,5 +1,5 @@
 import React from 'react';
-import { SparklesCore } from '../components/Chat/SparklesCore';
+import { SparklesCore } from '../components/Background/SparklesCore';
 
 export default function Home() {
   return (
@@ -11,7 +11,7 @@ export default function Home() {
           maxSize={2}
           speed={4}
           particleColor="#000000"
-          particleDensity={50}
+          particleDensity={200}
           className="h-full"
         />
       </div>

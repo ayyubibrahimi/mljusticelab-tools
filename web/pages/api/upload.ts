@@ -3,9 +3,8 @@ import multer from 'multer';
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 
-const upload = multer({ dest: os.tmpdir() });
+const upload = multer({ dest: 'public/uploads/' });
 
 export const config = {
   api: {
@@ -29,10 +28,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
       }
 
-      const tempFilePath = `${file.path}.pdf`;
+      const tempFilePath = `public/uploads/${file.filename}.pdf`;
       fs.renameSync(file.path, tempFilePath);
 
-      const tempOutputPath = `${file.path}.json`;
+      const tempOutputPath = `public/uploads/${file.filename}.json`;
 
       res.writeHead(200, {
         'Content-Type': 'application/json',
@@ -69,7 +68,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 console.log('Process output:', processOutput);
                 const sentencePagePairs = JSON.parse(processOutput);
                 console.log('Parsed sentence-page pairs:', sentencePagePairs);
-                res.write(JSON.stringify({ sentencePagePairs, filePath: tempFilePath })); // Include the file path in the response
+
+                const pdfFilePath = `/uploads/${file.filename}.pdf`;
+                res.write(JSON.stringify({ sentencePagePairs, filePath: pdfFilePath }));
               } catch (error) {
                 console.error('Error parsing process output:', error);
                 res.write(JSON.stringify({ error: 'Error parsing process output' }));
@@ -79,13 +80,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               res.write(JSON.stringify({ error: 'Process script failed' }));
             }
             res.end();
-            fs.unlinkSync(tempFilePath);
-            fs.unlinkSync(tempOutputPath);
           });
         } else {
-          console.error('OCR script failed with code:', code); // Log the OCR script failure
+          console.error('OCR script failed with code:', code);
           res.end(JSON.stringify({ error: 'OCR script failed' }));
-          fs.unlinkSync(tempFilePath);
         }
       });
     });
