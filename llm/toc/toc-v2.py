@@ -105,30 +105,30 @@ def load_and_split(json_path):
 
 
 generate_template = """
-As an AI assistant, your task is to generate a concise and chronological summary of the events described in the provided police report excerpt. Use your understanding of the context and the following guidelines to create an accurate timeline:
+As an AI assistant, your task is to generate a concise summary of the key events and sections described in the provided police report excerpt. Use your understanding of the context and the following guidelines to create a clear and structured outline:
 
-- Identify and extract key events, such as incidents, arrests, witness statements, and evidence collection. 
-- Determine the sequence of events based on the information provided, paying attention to temporal indicators like dates, times, and phrases such as "before", "after", and "during".
-- Focus on the most critical actions and developments that contribute to the overall narrative.
-- Use clear and concise language to describe each event in the timeline.
-- Begin the summary by setting the scene, introducing the people, property, and other relevant information before describing the actions.
-- Organize the events in true chronological order, based on when they actually occurred, rather than from the perspective of the writer or any individual involved.
-- After narrating the main events, include additional facts such as evidence collected, pictures taken, witness statements, recovered property, and any other necessary details.
-- Do not infer any details that are not explicitly stated. If the text is too poorly OCR'd to derive an event, ignore this piece of the report. 
+- Identify the main sections or topics covered in the excerpt, such as the incident description, arrests, witness statements, evidence collection, or any other distinct parts of the report.
+- For each section or topic, provide a brief and informative title that captures the essence of the content.
+- Underneath each section title, list the key events, actions, or details related to that section in a concise manner.
+- Use bullet points or numbered lists to present the information in a clear and organized format.
+- Maintain a logical flow and structure based on the order in which the sections and events appear in the report.
+- If there are any subsections or subtopics within a main section, indent them appropriately to show the hierarchy.
+- Avoid including minor or irrelevant details that do not significantly contribute to the overall understanding of the report.
+- If the text is poorly OCR'd or lacks sufficient information to identify a section or event, skip that particular piece of the report.
 
-Given the context from the previous page ending, the current page, and the next page beginning, generate a summary of the events in chronological order.
+Given the context from the previous page ending, the current page, and the next page beginning, generate a structured outline of the key sections and events in the police report excerpt.
 
 Previous Page Ending: {previous_page_ending}
 Current Page: {current_page}
 Next Page Beginning: {next_page_beginning}
 
-Chronological Event Summary:
+Structured Outline:
 """
 
 
 def generate_timeline(docs, query, window_size=500):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(generate_template)
     response_chain = prompt_response | llm | StrOutputParser()
     output = []
@@ -157,12 +157,10 @@ def generate_timeline(docs, query, window_size=500):
             )
             response["page_content"] = processed_content
         output.append(response)
-
-    # Write the output to a file named "output" in the "../data/" directory
+        
     with open("../data/output/general_timeline.json", "w") as file:
         json.dump(output, file, indent=2)
 
-    # print("Generated page summaries:", output)
 
     return output
 
@@ -176,12 +174,10 @@ def generate_pdf(toc_string, output_directory):
 
     elements = []
 
-    # Add title
     title = Paragraph("Table of Contents", title_style)
     elements.append(title)
     elements.append(Spacer(1, 12))
 
-    # Parse the table of contents string
     toc_lines = toc_string.strip().split("\n\n")
     for line in toc_lines:
         if ":" in line:
@@ -191,7 +187,6 @@ def generate_pdf(toc_string, output_directory):
             elements.append(section_paragraph)
             elements.append(Spacer(1, 12))
 
-    # Build the PDF
     doc.build(elements)
 
 
@@ -226,6 +221,13 @@ As an AI assistant, your task is to update the table of contents for the provide
     "section_title": "Section Title 2",
     "section_description": "Detailed description of section 2...",
     "page_range": "6-10"
+        "subsection_title": "Subsection Title 2.1",
+        "subsection_description": "Detailed description of subsection 2.1...",
+        "page_range": "6-8"
+
+        "subsection_title": "Subsection Title 2.2",
+        "subsection_description": "Detailed description of subsection 2.2...",
+        "page_range": "9-10"
 
 Current Page Summary:
 {current_page_summary}
@@ -233,11 +235,13 @@ Current Page Summary:
 Existing Table of Contents:
 {existing_toc}
 
-Updated Table of Contents (JSON):
+Updated Table of Contents:
 """
 
 def generate_initial_table_of_contents(summaries, output_directory):
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+
     prompt_response = ChatPromptTemplate.from_template(toc_template)
     response_chain = prompt_response | llm | StrOutputParser()
 
@@ -254,7 +258,6 @@ def generate_initial_table_of_contents(summaries, output_directory):
 
         table_of_contents = updated_toc.strip()
 
-    # Generate the table of contents PDF
     generate_pdf(table_of_contents, output_directory)
 
     return table_of_contents
@@ -270,7 +273,30 @@ As an AI assistant, your task is to update the table of contents (TOC) based on 
    - Adjust the page ranges of sections and subsections to include the current page number.
 4. Ensure that the updated TOC follows a logical order and structure based on the chronology of events and the flow of information.
 5. Preserve the existing structure and formatting of the TOC.
-6. Output the updated TOC as a JSON array of objects with the following structure:
+6. Output the updated table of contents as a JSON object with the following structure:
+
+    "section_title": "Section Title 1",
+    "section_description": "Detailed description of section 1...",
+    "page_range": "1-5",
+    "subsections": 
+        "subsection_title": "Subsection Title 1.1",
+        "subsection_description": "Detailed description of subsection 1.1...",
+        "page_range": "1-3"
+
+        "subsection_title": "Subsection Title 1.2",
+        "subsection_description": "Detailed description of subsection 1.2...",
+        "page_range": "4-5"
+
+    "section_title": "Section Title 2",
+    "section_description": "Detailed description of section 2...",
+    "page_range": "6-10"
+        "subsection_title": "Subsection Title 2.1",
+        "subsection_description": "Detailed description of subsection 2.1...",
+        "page_range": "6-8"
+
+        "subsection_title": "Subsection Title 2.2",
+        "subsection_description": "Detailed description of subsection 2.2...",
+        "page_range": "9-10"
 
 
 Page Summaries:
@@ -284,7 +310,10 @@ Updated Table of Contents (JSON):
 
 
 def update_table_of_contents_iteratively(page_summaries, initial_toc, output_directory, batch_size=5):
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+
     prompt_response = ChatPromptTemplate.from_template(toc_update_template)
     response_chain = prompt_response | llm | StrOutputParser()
 
