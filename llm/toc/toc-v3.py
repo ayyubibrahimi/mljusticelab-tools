@@ -105,24 +105,22 @@ def load_and_split(json_path):
 
 
 generate_template = """
-As an AI assistant, your task is to generate a concise summary of the key events and sections described in the provided police report excerpt. Use your understanding of the context and the following guidelines to create a clear and structured outline:
+As an AI assistant, your task is to extract key events, actions, and details from the provided police report excerpt to create a chronological timeline. Use your understanding of the context and the following guidelines to identify and organize the relevant information:
 
-- Identify the main sections or topics covered in the excerpt, such as the incident description, arrests, witness statements, evidence collection, or any other distinct parts of the report.
-- For each section or topic, provide a brief and informative title that captures the essence of the content.
-- Underneath each section title, list the key events, actions, or details related to that section in a concise manner.
-- Use bullet points or numbered lists to present the information in a clear and organized format.
-- Maintain a logical flow and structure based on the order in which the sections and events appear in the report.
-- If there are any subsections or subtopics within a main section, indent them appropriately to show the hierarchy.
-- Avoid including minor or irrelevant details that do not significantly contribute to the overall understanding of the report.
-- If the text is poorly OCR'd or lacks sufficient information to identify a section or event, skip that particular piece of the report.
+- Identify significant events, actions, or details that contribute to the overall narrative of the police report.
+- For each identified event or action, provide a brief and informative description that captures its essence.
+- Maintain a chronological order based on the sequence in which the events or actions occurred in the report.
+- If there are any related sub-events or additional details for a main event, include them as sub-points under the main event.
+- Avoid including minor or irrelevant details that do not significantly contribute to the overall timeline.
+- If the text is poorly OCR'd or lacks sufficient information to identify an event or action, skip that particular piece of the report.
 
-Given the context from the previous page ending, the current page, and the next page beginning, generate a structured outline of the key sections and events in the police report excerpt.
+Given the context from the previous page ending, the current page, and the next page beginning, extract the key events and actions from the police report excerpt and organize them in a chronological timeline.
 
 Previous Page Ending: {previous_page_ending}
 Current Page: {current_page}
 Next Page Beginning: {next_page_beginning}
 
-Structured Outline:
+Chronological Timeline:
 """
 
 
@@ -158,34 +156,52 @@ def generate_timeline(docs, query, window_size=500):
             response["page_content"] = processed_content
         output.append(response)
 
-    with open("../data/output/general_timeline.json", "w") as file:
-        json.dump(output, file, indent=2)
+    # with open("../data/output/general_timeline.json", "w") as file:
+    #     json.dump(output, file, indent=2)
 
     return output
 
 
-def generate_pdf(toc_string, output_directory):
+def generate_pdf(table_of_contents_text, output_directory):
     pdf_file_path = os.path.join(output_directory, "table_of_contents.pdf")
     doc = SimpleDocTemplate(pdf_file_path, pagesize=letter)
 
     styles = getSampleStyleSheet()
     title_style = styles["Heading1"]
     section_style = styles["Heading2"]
+    subsection_style = styles["Heading3"]
 
     elements = []
 
     title = Paragraph("Table of Contents", title_style)
     elements.append(title)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 24))
 
-    toc_lines = toc_string.strip().split("\n\n")
-    for line in toc_lines:
-        if ":" in line:
-            section_title, page_range = line.split(":", 1)
-            section_text = f"{section_title.strip()} (Pages: {page_range.strip()})"
+    lines = table_of_contents_text.split("\n")
+    for i, line in enumerate(lines):
+        if line.strip() == "":
+            continue
+
+        if line.startswith("-"):
+            subsection_text = line[2:].strip()
+            subsection_paragraph = Paragraph(subsection_text, subsection_style)
+            elements.append(subsection_paragraph)
+            elements.append(Spacer(1, 4))
+        else:
+            section_parts = line.split("(")
+            section_title = section_parts[0].strip()
+            page_range = section_parts[1].strip(")") if len(section_parts) > 1 else ""
+
+            section_text = f"{section_title}"
+            if page_range:
+                section_text += f" <font size=8>({page_range})</font>"
+
             section_paragraph = Paragraph(section_text, section_style)
             elements.append(section_paragraph)
-            elements.append(Spacer(1, 12))
+
+            # Add extra space between sections, except for the last section
+            if i < len(lines) - 1 and not lines[i + 1].startswith("-"):
+                elements.append(Spacer(1, 12))
 
     doc.build(elements)
 
@@ -196,38 +212,17 @@ As an AI assistant, your task is to update the table of contents for the provide
 1. Review the current page summary and identify if it belongs to an existing section in the table of contents or if it represents a new section.
 2. If the current page summary belongs to an existing section:
    - Update the page range for that section to include the current page number.
-   - If necessary, modify the section description to accommodate the content of the current page.
+   - If necessary, modify the section title or description to better represent the content of the current page.
 3. If the current page summary represents a new section:
    - Add a new entry to the table of contents for this section.
-   - Provide a brief and informative description that captures the main content or theme of the section.
+   - Provide a clear and concise title and description that captures the main content or theme of the section.
    - Include the current page number as the starting page for this section.
-4. Ensure that the table of contents remains organized in a logical order based on the chronology of events or the flow of information in the report.
-5. Use clear and concise language for the section descriptions, making them easily understandable.
-6. Preserve the existing structure and formatting of the table of contents.
-7. Output the updated table of contents as a JSON object with the following structure:
-
-    "section_title": "Section Title 1",
-    "section_description": "Detailed description of section 1...",
-    "page_range": "1-5",
-    "subsections": 
-        "subsection_title": "Subsection Title 1.1",
-        "subsection_description": "Detailed description of subsection 1.1...",
-        "page_range": "1-3"
-
-        "subsection_title": "Subsection Title 1.2",
-        "subsection_description": "Detailed description of subsection 1.2...",
-        "page_range": "4-5"
-
-    "section_title": "Section Title 2",
-    "section_description": "Detailed description of section 2...",
-    "page_range": "6-10"
-        "subsection_title": "Subsection Title 2.1",
-        "subsection_description": "Detailed description of subsection 2.1...",
-        "page_range": "6-8"
-
-        "subsection_title": "Subsection Title 2.2",
-        "subsection_description": "Detailed description of subsection 2.2...",
-        "page_range": "9-10"
+4. If the current page summary contains information that is relevant to multiple sections:
+   - Consider creating a new subsection within an existing section to capture the specific content.
+   - Update the page ranges and descriptions of the affected sections and subsections accordingly.
+5. Ensure that the table of contents remains organized in a logical order based on the chronology of events or the flow of information in the report.
+6. Use clear and concise language for the section titles and descriptions, making them easily understandable.
+7. Maintain a consistent formatting style for the table of contents.
 
 Current Page Summary:
 {current_page_summary}
@@ -261,47 +256,23 @@ def generate_initial_table_of_contents(summaries, output_directory):
 
         table_of_contents = updated_toc.strip()
 
-    generate_pdf(table_of_contents, output_directory)
+    # generate_pdf(table_of_contents, output_directory)
 
     return table_of_contents
 
 
 toc_update_template = """
-As an AI assistant, your task is to update the table of contents (TOC) based on the provided page summary to ensure it accurately represents the content of the police report. Please follow these guidelines:
+As an AI assistant, your task is to update the table of contents (TOC) based on the provided page summaries to ensure it accurately represents the content of the police report. Please follow these guidelines:
 
-1. Carefully review the page summary and compare it against the sections and subsections in the existing TOC.
-2. Identify any significant events, topics, or details from the page summary that are missing or underrepresented in the TOC.
-3. If the TOC needs to be updated:
-   - Add new sections or subsections to cover the missing content.
-   - Update the titles and descriptions of existing sections and subsections to better reflect the content.
-   - Adjust the page ranges of sections and subsections to include the current page number.
+1. Carefully review each page summary and compare it against the sections and subsections in the existing TOC.
+2. Identify any significant events, topics, or details from the page summaries that are missing or underrepresented in the TOC.
+3. For each page summary:
+   - If the content belongs to an existing section or subsection, update the page range and description accordingly.
+   - If the content introduces a new section or subsection, add it to the TOC with a clear title, description, and page range.
+   - If the content spans multiple sections or subsections, consider creating new subsections or modifying existing ones to better capture the specific details.
 4. Ensure that the updated TOC follows a logical order and structure based on the chronology of events and the flow of information.
-5. Preserve the existing structure and formatting of the TOC.
-6. Output the updated table of contents as a JSON object with the following structure:
-
-    "section_title": "Section Title 1",
-    "section_description": "Detailed description of section 1...",
-    "page_range": "1-5",
-    "subsections": 
-        "subsection_title": "Subsection Title 1.1",
-        "subsection_description": "Detailed description of subsection 1.1...",
-        "page_range": "1-3"
-
-        "subsection_title": "Subsection Title 1.2",
-        "subsection_description": "Detailed description of subsection 1.2...",
-        "page_range": "4-5"
-
-    "section_title": "Section Title 2",
-    "section_description": "Detailed description of section 2...",
-    "page_range": "6-10"
-        "subsection_title": "Subsection Title 2.1",
-        "subsection_description": "Detailed description of subsection 2.1...",
-        "page_range": "6-8"
-
-        "subsection_title": "Subsection Title 2.2",
-        "subsection_description": "Detailed description of subsection 2.2...",
-        "page_range": "9-10"
-
+5. Maintain a consistent formatting style and use clear, concise language for the titles and descriptions.
+6. If any sections or subsections become redundant or irrelevant after the updates, consider merging or removing them to keep the TOC concise and informative.
 
 Page Summaries:
 {page_summaries}
@@ -309,7 +280,7 @@ Page Summaries:
 Existing Table of Contents:
 {table_of_contents}
 
-Updated Table of Contents (JSON):
+Updated Table of Contents:
 """
 
 
@@ -343,6 +314,8 @@ def update_table_of_contents_iteratively(
         )
 
         # updated_toc = json.loads(updated_toc_json)
+
+    print(updated_toc_json)
 
     # Generate the table of contents PDF
     generate_pdf(updated_toc_json, output_directory)

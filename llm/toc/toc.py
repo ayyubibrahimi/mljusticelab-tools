@@ -166,6 +166,7 @@ def generate_timeline(docs, query, window_size=500):
 
     return output
 
+
 def generate_pdf(toc_string, output_directory):
     pdf_file_path = os.path.join(output_directory, "table_of_contents.pdf")
     doc = SimpleDocTemplate(pdf_file_path, pagesize=letter)
@@ -226,6 +227,7 @@ Existing Table of Contents:
 Updated Table of Contents (JSON):
 """
 
+
 def generate_table_of_contents(summaries, output_directory):
     llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(toc_template)
@@ -237,10 +239,12 @@ def generate_table_of_contents(summaries, output_directory):
         page_content = summary["page_content"]
         page_number = summary.get("page_number")
 
-        updated_toc = response_chain.invoke({
-            "current_page_summary": f"Page {page_number}: {page_content}",
-            "existing_toc": table_of_contents
-        })
+        updated_toc = response_chain.invoke(
+            {
+                "current_page_summary": f"Page {page_number}: {page_content}",
+                "existing_toc": table_of_contents,
+            }
+        )
 
         table_of_contents = updated_toc.strip()
 
@@ -248,6 +252,7 @@ def generate_table_of_contents(summaries, output_directory):
     generate_pdf(table_of_contents, output_directory)
 
     return table_of_contents
+
 
 def write_json_output(combined_summary, sentence_to_page, output_file_path):
     output_data = []
