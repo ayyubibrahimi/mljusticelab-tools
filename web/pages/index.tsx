@@ -9,10 +9,10 @@ export default function Home() {
         <SparklesCore
           background="#0d47a1"
           minSize={1}
-          maxSize={2}
-          speed={4}
-          particleColor="#000000"
-          particleDensity={200}
+          maxSize={10}
+          speed={0.2}
+          particleColor="#008080"
+          particleDensity={100}
           className="h-full"
         />
         <div className="absolute inset-0 flex items-center justify-center">

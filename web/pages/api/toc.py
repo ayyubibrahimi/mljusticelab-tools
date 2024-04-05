@@ -23,6 +23,7 @@ from reportlab.platypus import (
     ListItem,
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import sys
 
 
 # nltk.download('stopwords')
@@ -111,29 +112,31 @@ def load_and_split(json_path):
 
     return data
 
-
 generate_template = """
 As an AI assistant, your task is to extract key events, actions, and details from the provided police report excerpt to create a chronological timeline. Use your understanding of the context and the following guidelines to identify and organize the relevant information:
 
 - Identify significant events, actions, or details that contribute to the overall narrative of the police report.
 - For each identified event or action, provide a brief and informative description that captures its essence.
+- Include the page number(s) on which each event or action is mentioned.
 - Maintain a chronological order based on the sequence in which the events or actions occurred in the report.
-- If there are any related sub-events or additional details for a main event, include them as sub-points under the main event.
+- If there are any related sub-events or additional details for a main event, include them as sub-points under the main event, along with their page numbers.
 - Avoid including minor or irrelevant details that do not significantly contribute to the overall timeline.
 - If the text is poorly OCR'd or lacks sufficient information to identify an event or action, skip that particular piece of the report.
 
-Given the context from the previous page ending, the current page, and the next page beginning, extract the key events and actions from the police report excerpt and organize them in a chronological timeline.
+Given the context from the previous page ending, the current page, and the next page beginning, extract the key events and actions from the police report excerpt and organize them in a chronological timeline, including the relevant page numbers for each event or action.
 
 Previous Page Ending: {previous_page_ending}
+Current Page Number: {current_page_number}
 Current Page: {current_page}
 Next Page Beginning: {next_page_beginning}
 
 Chronological Timeline:
 """
 
-
 def generate_timeline(docs, query, window_size=500):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(generate_template)
     response_chain = prompt_response | llm | StrOutputParser()
@@ -149,14 +152,15 @@ def generate_timeline(docs, query, window_size=500):
             if i < len(docs) - 1
             else ""
         )
-        page_number = docs[i].metadata.get("seq_num")
+        current_page_number = docs[i].metadata.get("seq_num")
 
-        response = {"page_content": "", "page_number": page_number}
+        response = {"page_content": "", "page_number": current_page_number}
         if current_page:
             processed_content = response_chain.invoke(
                 {
                     "question": query,
                     "previous_page_ending": previous_page_ending,
+                    "current_page_number": current_page_number,
                     "current_page": current_page,
                     "next_page_beginning": next_page_beginning,
                 }
@@ -164,11 +168,7 @@ def generate_timeline(docs, query, window_size=500):
             response["page_content"] = processed_content
         output.append(response)
 
-    # with open("../data/output/general_timeline.json", "w") as file:
-    #     json.dump(output, file, indent=2)
-
     return output
-
 
 def generate_pdf(toc_string, output_directory):
     pdf_file_path = os.path.join(output_directory, "table_of_contents.pdf")
@@ -236,29 +236,27 @@ As an AI assistant, your task is to update the table of contents for the provide
 2. If the current page summary belongs to an existing section:
    - Update the page range for that section to include the current page number.
    - If necessary, modify the section title or description to better represent the content of the current page.
+   - Consider creating subsections within the main section to capture specific details from the current page, along with their page numbers.
 3. If the current page summary represents a new section:
    - Add a new entry to the table of contents for this section.
    - Provide a clear and concise title and description that captures the main content or theme of the section.
    - Include the current page number as the starting page for this section.
-4. If the current page summary contains information that is relevant to multiple sections:
-   - Consider creating a new subsection within an existing section to capture the specific content.
-   - Update the page ranges and descriptions of the affected sections and subsections accordingly.
-5. Ensure that the table of contents remains organized in a logical order based on the chronology of events or the flow of information in the report.
-6. Use clear and concise language for the section titles and descriptions, making them easily understandable.
-7. Maintain a consistent formatting style for the table of contents.
+   - If relevant, create subsections within the new section to highlight specific details, including their page numbers.
+4. Ensure that the table of contents remains organized in a logical order based on the chronology of events or the flow of information in the report.
+5. Use clear and concise language for the section titles, descriptions, and subsections, making them easily understandable.
+6. Maintain a consistent formatting style for the table of contents, including indentation for subsections.
 
 Example format:
 1. Main Section 1 (Pages: X-Y)
-   - Subsection 1.1 (Pages: X-Y)
-   - Subsection 1.2 (Pages: X-Y)
+   1.1 Subsection 1 (Pages: X-Y)
+   1.2 Subsection 2 (Pages: X-Y)
 2. Main Section 2 (Pages: X-Y)
-   - Subsection 2.1 (Pages: X-Y)
-   - Subsection 2.2 (Pages: X-Y)
-   - Subsection 2.3 (Pages: X-Y)
+   2.1 Subsection 1 (Pages: X-Y)
+   2.2 Subsection 2 (Pages: X-Y)
+   2.3 Subsection 3 (Pages: X-Y)
 3. Main Section 3 (Pages: X-Y)
-   - Subsection 3.1 (Pages: X-Y)
-   - Subsection 3.2 (Pages: X-Y)
-
+   3.1 Subsection 1 (Pages: X-Y)
+   3.2 Subsection 2 (Pages: X-Y)
 
 Current Page Summary:
 {current_page_summary}
@@ -270,9 +268,9 @@ Updated Table of Contents:
 """
 
 
-def generate_initial_table_of_contents(summaries, output_directory):
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+def generate_initial_table_of_contents(summaries):
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
 
     prompt_response = ChatPromptTemplate.from_template(toc_template)
     response_chain = prompt_response | llm | StrOutputParser()
@@ -305,22 +303,22 @@ As an AI assistant, your task is to update the table of contents (TOC) based on 
 3. For each page summary:
    - If the content belongs to an existing section or subsection, update the page range and description accordingly.
    - If the content introduces a new section or subsection, add it to the TOC with a clear title, description, and page range.
-   - If the content spans multiple sections or subsections, consider creating new subsections or modifying existing ones to better capture the specific details.
+   - If the content spans multiple sections or subsections, consider creating new subsections or modifying existing ones to better capture the specific details, along with their page numbers.
 4. Ensure that the updated TOC follows a logical order and structure based on the chronology of events and the flow of information.
-5. Maintain a consistent formatting style and use clear, concise language for the titles and descriptions.
+5. Maintain a consistent formatting style, including indentation for subsections, and use clear, concise language for the titles and descriptions.
 6. If any sections or subsections become redundant or irrelevant after the updates, consider merging or removing them to keep the TOC concise and informative.
 
 Example format:
 1. Main Section 1 (Pages: X-Y)
-   - Subsection 1.1 (Pages: X-Y)
-   - Subsection 1.2 (Pages: X-Y)
+   1.1 Subsection 1 (Pages: X-Y)
+   1.2 Subsection 2 (Pages: X-Y)
 2. Main Section 2 (Pages: X-Y)
-   - Subsection 2.1 (Pages: X-Y)
-   - Subsection 2.2 (Pages: X-Y)
-   - Subsection 2.3 (Pages: X-Y)
+   2.1 Subsection 1 (Pages: X-Y)
+   2.2 Subsection 2 (Pages: X-Y)
+   2.3 Subsection 3 (Pages: X-Y)
 3. Main Section 3 (Pages: X-Y)
-   - Subsection 3.1 (Pages: X-Y)
-   - Subsection 3.2 (Pages: X-Y)
+   3.1 Subsection 1 (Pages: X-Y)
+   3.2 Subsection 2 (Pages: X-Y)
 
 Page Summaries:
 {page_summaries}
@@ -333,11 +331,11 @@ Updated Table of Contents:
 
 
 def update_table_of_contents_iteratively(
-    page_summaries, initial_toc, output_directory, batch_size=5
+    page_summaries, initial_toc, batch_size=5
 ):
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
 
     prompt_response = ChatPromptTemplate.from_template(toc_update_template)
     response_chain = prompt_response | llm | StrOutputParser()
@@ -369,43 +367,41 @@ def update_table_of_contents_iteratively(
 
 
 cross_reference_template = """
-As an AI assistant, your task is to update the table of contents based on the comparison between the generated timeline and the previous table of contents. The goal is to ensure that the final table of contents is comprehensive, consistent, and well-structured. Please follow these steps:
+As an AI assistant, your task is to update the table of contents based on the comparison between the generated timeline and the previous table of contents. The goal is to ensure that the final table of contents is comprehensive, consistent, and well-structured, with accurate page citations. Please follow these steps:
 
-1. Carefully review the generated timeline and identify all key events, details, and relevant information.
+1. Carefully review the generated timeline and identify all key events, details, and relevant information, along with their corresponding page numbers.
 
-2. Compare the identified key information from the generated timeline with the content of the previous table of contents. For each piece of key information, determine if it is:
-   a) Present in the table of contents and consistent
-   b) Present in the table of contents but inconsistent or incomplete
+2. Compare the identified key information and page numbers from the generated timeline with the content of the previous table of contents. For each piece of key information, determine if it is:
+   a) Present in the table of contents with consistent page numbers
+   b) Present in the table of contents but with inconsistent or missing page numbers
    c) Missing from the table of contents entirely
 
 3. Update the table of contents based on your analysis:
    - For information that is present and consistent in both the timeline and table of contents, keep it as is.
-   - For information that is present in the timeline but inconsistent or incomplete in the table of contents, update the table of contents with the details from the timeline.
-   - For information that is missing from the table of contents but present in the timeline, add it to the table of contents in the most appropriate section to maintain chronological order and narrative flow.
+   - For information that is present in the timeline but has inconsistent or missing page numbers in the table of contents, update the page numbers in the table of contents to match the timeline.
+   - For information that is missing from the table of contents but present in the timeline, add it to the table of contents in the most appropriate section and subsection, along with the correct page numbers, to maintain chronological order and narrative flow.
 
 4. Ensure that the updated table of contents:
-   - Includes all the key information from the generated timeline without duplication
-   - Maintains a consistent structure and formatting
-   - Uses clear and concise section titles and descriptions
-   - Is free of inconsistencies or contradictions
+   - Includes all the key information and page numbers from the generated timeline without duplication
+   - Maintains a consistent structure and formatting, with indentation for subsections
+   - Uses clear and concise section titles, subsection titles, and descriptions
+   - Is free of inconsistencies or contradictions in page numbers
 
-5. If there is any information in the previous table of contents that directly conflicts with the generated timeline, prioritize the information from the timeline.
+5. If there is any information in the previous table of contents that directly conflicts with the generated timeline, prioritize the information and page numbers from the timeline.
 
-6. After updating the table of contents, review it once more to ensure it is an accurate and well-structured representation of the events described in the police report.
-
+6. After updating the table of contents, review it once more to ensure it is an accurate and well-structured representation of the events described in the police report, with correct page citations.
 
 Example format:
 1. Main Section 1 (Pages: X-Y)
-   - Subsection 1.1 (Pages: X-Y)
-   - Subsection 1.2 (Pages: X-Y)
+   1.1 Subsection 1 (Pages: X-Y)
+   1.2 Subsection 2 (Pages: X-Y)
 2. Main Section 2 (Pages: X-Y)
-   - Subsection 2.1 (Pages: X-Y)
-   - Subsection 2.2 (Pages: X-Y)
-   - Subsection 2.3 (Pages: X-Y)
+   2.1 Subsection 1 (Pages: X-Y)
+   2.2 Subsection 2 (Pages: X-Y)
+   2.3 Subsection 3 (Pages: X-Y)
 3. Main Section 3 (Pages: X-Y)
-   - Subsection 3.1 (Pages: X-Y)
-   - Subsection 3.2 (Pages: X-Y)
-
+   3.1 Subsection 1 (Pages: X-Y)
+   3.2 Subsection 2 (Pages: X-Y)
 
 Generated Timeline:
 {generated_timeline}
@@ -436,7 +432,7 @@ def cross_reference_outputs(generated_timeline, updated_toc):
     # print(comprehensive_summary)
 
     # Generate the table of contents PDF
-    generate_pdf(comprehensive_summary, output_directory)
+    # generate_pdf(comprehensive_summary, output_directory)
 
     return comprehensive_summary
 
@@ -466,7 +462,7 @@ def evaluate_outputs(generated_timeline, updated_toc):
         {"generated_timeline": generated_timeline, "updated_toc": updated_toc}
     )
 
-    print(comprehensive_summary)
+    # print(comprehensive_summary)
 
     # Generate the table of contents PDF
     # generate_pdf(comprehensive_summary, output_directory)
@@ -474,39 +470,64 @@ def evaluate_outputs(generated_timeline, updated_toc):
     return comprehensive_summary
 
 
-def write_json_output(combined_summary, sentence_to_page, output_file_path):
-    output_data = []
-    for sentence, page_number in sentence_to_page.items():
-        output_data.append({"sentence": sentence, "page_number": page_number})
 
-    with open(output_file_path, "w") as file:
-        json.dump(output_data, file, indent=4)
+def parse_table_of_contents(input_string):
+    return input_string
 
-
+def write_json_output(toc_data, total_pages, filename):
+    try:
+        output_data = []
+        for i in range(total_pages):
+            if i == 0:
+                # Include toc_data only in the first entry
+                sentence_lines = []
+                for line in toc_data.split('\n'):
+                    sentence_lines.append({"text": line.strip()})
+                page_data = {"sentence": sentence_lines, "page_number": i + 1}
+            else:
+                # For other pages, leave the sentence empty
+                page_data = {"sentence": [], "page_number": i + 1}
+            output_data.append(page_data)
+        
+        print(json.dumps(output_data, indent=2), end='')
+    except Exception as e:
+        # logger.error(f"Error writing JSON output: {str(e)}")
+        print(json.dumps({"error": "Failed to write JSON output"}), end='')
+        
+    
 if __name__ == "__main__":
-    input_directory = "../../ocr/data/output"
-    output_directory = "../data/output"
-    for filename in os.listdir(input_directory):
-        if filename.endswith(".json"):
-            json_path = os.path.join(input_directory, filename)
-            docs = load_and_split(json_path)
-            query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_timeline(docs, query)
+    if len(sys.argv) < 2:
+        # logger.error("Please provide the path to the JSON file as a command-line argument.")
+        # print(json.dumps({"success": False, "message": "Missing input file path"}))
+        sys.exit(1)
+    
+    input_file_path = sys.argv[1]
+    
+    try:
+        docs = load_and_split(input_file_path)
+        # print("Loaded and split documents:", len(docs))
 
-            initial_toc = generate_initial_table_of_contents(
-                page_summaries, output_directory
+        query = "Generate a timeline of events based on the police report."
+        page_summaries = generate_timeline(docs, query)
+        initial_toc = generate_initial_table_of_contents(
+                page_summaries,
             )
             # print(f"Generated initial table of contents for {filename}: {initial_toc}")
 
-            updated_toc = update_table_of_contents_iteratively(
-                page_summaries, initial_toc, output_directory, batch_size=5
+        updated_toc = update_table_of_contents_iteratively(
+                page_summaries, initial_toc,  batch_size=5
             )
             # print(f"Updated table of contents for {filename}: {updated_toc}")
 
-            comprehensive_summary = cross_reference_outputs(page_summaries, updated_toc)
-            print("Comprehensive Summary:")
-            print(comprehensive_summary)
+        comprehensive_summary = cross_reference_outputs(page_summaries, updated_toc)
+        # print("Comprehensive Summary:")
+        # print(comprehensive_summary)
 
-            evaluation = evaluate_outputs(page_summaries, comprehensive_summary)
-            print("Evaluation:")
-
+        total_pages = len(docs)
+        filename = os.path.splitext(os.path.basename(input_file_path))[0]
+        write_json_output(comprehensive_summary, total_pages, filename)
+        
+    except Exception as e:
+        # logger.error(f"Error processing JSON: {str(e)}")
+        print(json.dumps({"success": False, "message": "Failed to process JSON"}))
+        sys.exit(1)

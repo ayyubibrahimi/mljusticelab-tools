@@ -30,7 +30,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const tempFilePath = `public/uploads/${file.filename}.pdf`;
       fs.renameSync(file.path, tempFilePath);
-
       const tempOutputPath = `public/uploads/${file.filename}.json`;
 
       res.writeHead(200, {
@@ -48,39 +47,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       ocrProcess.on('close', (code) => {
         if (code === 0) {
-          // Pass the output file path of ocr.py to process.py script
-          const processScriptPath = path.join(scriptsDir, 'process.py');
-          const processProcess = spawn('python3', [processScriptPath, tempOutputPath]);
+          const selectedScript = req.body.script; // Get the selected script from the request body
 
-          let processOutput = '';
+          if (selectedScript === 'process.py') {
+            // Pass the output file path of ocr.py to process.py script
+            const processScriptPath = path.join(scriptsDir, 'process.py');
+            const processProcess = spawn('python3', [processScriptPath, tempOutputPath]);
 
-          processProcess.stdout.on('data', (data) => {
-            processOutput += data.toString();
-          });
+            let processOutput = '';
+            processProcess.stdout.on('data', (data) => {
+              processOutput += data.toString();
+            });
 
-          processProcess.stderr.on('data', (data) => {
-            console.error(`Process script error: ${data}`);
-          });
+            processProcess.stderr.on('data', (data) => {
+              console.error(`Process script error: ${data}`);
+            });
 
-          processProcess.on('close', (code) => {
-            if (code === 0) {
-              try {
-                console.log('Process output:', processOutput);
-                const sentencePagePairs = JSON.parse(processOutput);
-                console.log('Parsed sentence-page pairs:', sentencePagePairs);
-
-                const pdfFilePath = `/uploads/${file.filename}.pdf`;
-                res.write(JSON.stringify({ sentencePagePairs, filePath: pdfFilePath }));
-              } catch (error) {
-                console.error('Error parsing process output:', error);
-                res.write(JSON.stringify({ error: 'Error parsing process output' }));
+            processProcess.on('close', (code) => {
+              if (code === 0) {
+                try {
+                  console.log('Process output:', processOutput);
+                  const sentencePagePairs = JSON.parse(processOutput);
+                  console.log('Parsed sentence-page pairs:', sentencePagePairs);
+                  const pdfFilePath = `/uploads/${file.filename}.pdf`;
+                  res.write(JSON.stringify({ sentencePagePairs, filePath: pdfFilePath }));
+                } catch (error) {
+                  console.error('Error parsing process output:', error);
+                  res.write(JSON.stringify({ error: 'Error parsing process output' }));
+                }
+              } else {
+                console.error('Process script failed with code:', code);
+                res.write(JSON.stringify({ error: 'Process script failed' }));
               }
-            } else {
-              console.error('Process script failed with code:', code);
-              res.write(JSON.stringify({ error: 'Process script failed' }));
-            }
+              res.end();
+            });
+          } else if (selectedScript === 'toc.py') {
+            // Pass the output file path of ocr.py to toc.py script
+            const tocScriptPath = path.join(scriptsDir, 'toc.py');
+            const tocProcess = spawn('python3', [tocScriptPath, tempOutputPath]);
+          
+            let tocOutput = '';
+            tocProcess.stdout.on('data', (data) => {
+              tocOutput += data.toString();
+            });
+          
+            tocProcess.stderr.on('data', (data) => {
+              console.error(`TOC script error: ${data}`);
+            });
+          
+            tocProcess.on('close', (code) => {
+              if (code === 0) {
+                try {
+                  console.log('TOC output:', tocOutput);
+                  const tocData = JSON.parse(tocOutput);
+                  console.log('Parsed TOC data:', tocData);
+            
+                  if (Array.isArray(tocData)) {
+                    const pdfFilePath = `/uploads/${file.filename}.pdf`;
+                    res.write(JSON.stringify({ tocData, filePath: pdfFilePath }));
+                  } else {
+                    console.error('Invalid TOC data format');
+                    res.write(JSON.stringify({ error: 'Invalid TOC data format' }));
+                  }
+                } catch (error) {
+                  console.error('Error parsing TOC output:', error);
+                  res.write(JSON.stringify({ error: 'Error parsing TOC output' }));
+                }
+              } else {
+                console.error('TOC script failed with code:', code);
+                res.write(JSON.stringify({ error: 'TOC script failed' }));
+              }
+              res.end();
+            });
+          } else {
+            res.write(JSON.stringify({ error: 'Invalid script selected' }));
             res.end();
-          });
+          }
         } else {
           console.error('OCR script failed with code:', code);
           res.end(JSON.stringify({ error: 'OCR script failed' }));

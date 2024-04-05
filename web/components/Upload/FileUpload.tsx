@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import styles from './UploadInterface.module.scss';
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void;
@@ -22,20 +23,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-8">
-      <input
-        type="file"
-        accept=".pdf"
-        onChange={handleFileChange}
-        className="mb-4"
-      />
-      <button
-        type="submit"
-        disabled={disabled}
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-      >
-        {disabled ? 'Processing...' : 'Process'}
-      </button>
+    <form onSubmit={handleSubmit} className={styles.uploadForm}>
+      <div className={styles.uploadInputContainer}>
+        <input type="file" accept=".pdf" onChange={handleFileChange} className={styles.fileInput} id="fileInput" />
+        <label htmlFor="fileInput" className={styles.fileInputLabel}>Choose file</label>
+        <button type="submit" disabled={disabled} className={styles.processButton}>
+          {disabled ? 'Processing...' : 'Process'}
+        </button>
+      </div>
     </form>
   );
 };
