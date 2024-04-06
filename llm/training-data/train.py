@@ -10,11 +10,15 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 from langchain_community.chat_models.huggingface import ChatHuggingFace
-
+from langchain_anthropic import ChatAnthropic
 
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from dotenv import find_dotenv, load_dotenv
+import json
+
+load_dotenv(find_dotenv())
 
 import os
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -38,7 +42,6 @@ sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def preprocess_text(text):
-    # text = text.lower()
     text = re.sub(r"\s+", " ", text)
     return text
 
@@ -85,7 +88,6 @@ def augment_named_entities(text, threshold=0.9):
             prev_end = ent.end_char
 
     augmented_text += text[prev_end:]
-    # print(augmented_text)
     return augmented_text
 
 
@@ -121,29 +123,25 @@ Chronological Event Summary:
 """
 
 
-def generate_timeline(docs, query, window_size=500, similarity_threshold=0.15):
-    HUGGINGFACEHUB_API_TOKEN = "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"
-    repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
-
-    repo_id = "mistralai/Mixtral-8x7B-v0.1"
-   
-    
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
-    )
-
-    chat_model = ChatHuggingFace(llm=llm)
+def generate_timeline(docs, query, output_path, window_size=500, similarity_threshold=0.15):
+    llm = ChatAnthropic(model_name="claude-3-opus-20240229")
     prompt_response = ChatPromptTemplate.from_template(generate_template)
-    response_chain = prompt_response | chat_model | StrOutputParser()
-
+    response_chain = prompt_response | llm | StrOutputParser()
     vectorizer = TfidfVectorizer()
-    output = []
+
+    if os.path.exists(output_path):
+        with open(output_path, "r") as json_file:
+            final_json = json.load(json_file)
+    else:
+        final_json = {"pages": []}
 
     for doc in docs:
         current_page = doc.page_content.replace("\n", " ")
-        page_number = doc.metadata.get("seq_num") 
-
-        response = {"page_content": "", "page_number": page_number, "similarity_score": 0.0}
+        page_number = doc.metadata.get("seq_num")
+        response = {
+            "input": "Below is an instruction that describes a task. Write a response that summarizes the text below. ### Text to Summarize: " + current_page,
+            "output": ""
+        }
 
         if current_page:
             processed_content = response_chain.invoke(
@@ -152,20 +150,19 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.15):
                     "current_page": current_page,
                 }
             )
-
             corpus = [current_page, processed_content]
             tf_idf_matrix = vectorizer.fit_transform(corpus)
             similarity_score = cosine_similarity(tf_idf_matrix[0:1], tf_idf_matrix[1:2])[0][0]
-
-            response["page_content"] = processed_content
-            response["similarity_score"] = similarity_score
-
+            response["output"] = processed_content
             print(response)
 
             if similarity_score >= similarity_threshold:
-                output.append(response)
+                final_json["pages"].append(response)
 
-    return output
+    with open(output_path, "w") as json_file:
+        json.dump(final_json, json_file, indent=2)
+
+    return final_json
 
 
 if __name__ == "__main__":
@@ -176,5 +173,6 @@ if __name__ == "__main__":
             json_path = os.path.join(input_directory, filename)
             docs = load_and_split(json_path)
             query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_timeline(docs, query)
-            print(page_summaries)
+            output_filename = os.path.splitext(filename)[0] + "_timeline.json"
+            output_path = os.path.join(output_directory, output_filename)
+            page_summaries = generate_timeline(docs, query, output_path)
