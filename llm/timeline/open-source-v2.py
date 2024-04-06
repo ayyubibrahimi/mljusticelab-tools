@@ -121,12 +121,11 @@ Chronological Event Summary:
 """
 
 
-def generate_timeline(docs, query, window_size=500, similarity_threshold=0.15):
+def generate_timeline(docs, query, similarity_threshold=0.2):
     HUGGINGFACEHUB_API_TOKEN = "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"
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-    repo_id = "mistralai/Mixtral-8x7B-v0.1"
-   
     
     llm = HuggingFaceEndpoint(
         repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
