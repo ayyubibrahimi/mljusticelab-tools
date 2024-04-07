@@ -9,7 +9,15 @@ import { followCursor } from 'tippy.js';
 
 const UploadInterface: React.FC = () => {
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
-  const [sentencePagePairs, setSentencePagePairs] = useState<{ sentence: string; page_number?: number }[]>([]);
+  const [sentencePagePairs, setSentencePagePairs] = useState<{
+    sentence: string;
+    page_number?: number;
+    page_number_score?: number;
+    page_number_candidate_2?: number;
+    page_number_candidate_2_score?: number;
+    page_number_candidate_3?: number;
+    page_number_candidate_3_score?: number;
+  }[]>([]);
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
@@ -78,8 +86,18 @@ const UploadInterface: React.FC = () => {
     }
   }, [sentencePagePairs, pdfPages, tocData]);
 
-  const uniquePageNumbers = [...new Set(sentencePagePairs.map(pair => pair.page_number ?? null).filter(Boolean))];
-
+  const uniquePageNumbers = [
+    ...new Set(
+      sentencePagePairs
+        .flatMap(pair => [
+          pair.page_number,
+          pair.page_number_candidate_2,
+          pair.page_number_candidate_3,
+        ])
+        .filter(Boolean)
+    ),
+  ];
+  
 return (
     <div className={styles.container}>
       <div className={styles.contentContainer}>
@@ -108,17 +126,38 @@ return (
               <div className={styles.statusMessage}>The PDF is being processed...</div>
             )}
 
-            {processingStatus === 'completed' && selectedScript === 'process.py' && (
-              <div ref={outputRef}>
-                {sentencePagePairs.map((pair, index) => (
-                  <Tippy key={index} content={`Page ${pair.page_number}`} followCursor={true} plugins={[followCursor]}>
-                    <p onClick={() => setSelectedPage(pair.page_number)} className={styles.clickableSentence}>
-                      {pair.sentence}
-                    </p>
-                  </Tippy>
-                ))}
-              </div>
-            )}
+          {processingStatus === 'completed' && selectedScript === 'process.py' && (
+            <div ref={outputRef}>
+              {sentencePagePairs.map((pair, index) => (
+                <Tippy
+                  key={index}
+                  content={
+                    <>
+                      <div className={styles.tippyTitle}>Associated Pages</div>
+                      <div className={styles.tippyContent}>
+                        <p>Page {pair.page_number} (Probability Score: {pair.page_number_score})</p>
+                        {pair.page_number_candidate_2 && (
+                          <p>Page {pair.page_number_candidate_2} (Probability Score: {pair.page_number_candidate_2_score})</p>
+                        )}
+                        {pair.page_number_candidate_3 && (
+                          <p>Page {pair.page_number_candidate_3} (Probability Score: {pair.page_number_candidate_3_score})</p>
+                        )}
+                      </div>
+                    </>
+                  }
+                  followCursor={true}
+                  plugins={[followCursor]}
+                >
+                  <p
+                    onClick={() => setSelectedPage(pair.page_number)}
+                    className={styles.clickableSentence}
+                  >
+                    {pair.sentence}
+                  </p>
+                </Tippy>
+              ))}
+            </div>
+          )}
             {processingStatus === 'completed' && selectedScript === 'toc.py' && (
               <div ref={outputRef}>
                 <div className={styles.tocSection}>

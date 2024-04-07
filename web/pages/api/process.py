@@ -230,16 +230,36 @@ def map_sentences_to_pages(combined_summary, summaries):
 
     sentence_to_page = {}
     for idx, sentence in enumerate(nlp(combined_summary["page_content"]).sents):
-        max_similarity = 0
-        page_number = None
+        page_similarities = []
         for page_idx, page_summary in enumerate(summaries):
             similarity = cosine_similarity(
                 [sentence_embeddings[idx]], [page_embeddings[page_idx]]
             )[0][0]
-            if similarity > max_similarity:
-                max_similarity = similarity
-                page_number = page_summary.get("page_number")
-        sentence_to_page[str(sentence).strip()] = page_number
+            page_similarities.append((page_summary.get("page_number"), similarity))
+
+        page_similarities.sort(key=lambda x: x[1], reverse=True)
+        page_number, score = page_similarities[0]
+        page_number_candidate_2 = (
+            page_similarities[1][0] if len(page_similarities) > 1 else None
+        )
+        page_number_candidate_2_score = (
+            page_similarities[1][1] if len(page_similarities) > 1 else None
+        )
+        page_number_candidate_3 = (
+            page_similarities[2][0] if len(page_similarities) > 2 else None
+        )
+        page_number_candidate_3_score = (
+            page_similarities[2][1] if len(page_similarities) > 2 else None
+        )
+
+        sentence_to_page[str(sentence).strip()] = {
+            "page_number": page_number,
+            "page_number_score": score,
+            "page_number_candidate_2": page_number_candidate_2,
+            "page_number_candidate_2_score": page_number_candidate_2_score,
+            "page_number_candidate_3": page_number_candidate_3,
+            "page_number_candidate_3_score": page_number_candidate_3_score,
+        }
 
     return sentence_to_page
 
@@ -345,12 +365,28 @@ def compare_summaries(groundtruth, summary):
 
     return response
 
+
 def write_json_output(combined_summary, sentence_to_page):
     output_data = []
     for sentence in nlp(combined_summary).sents:
         sentence_text = str(sentence).strip()
-        page_number = sentence_to_page.get(sentence_text)
-        output_data.append({"sentence": sentence_text, "page_number": page_number})
+        page_number_dict = sentence_to_page.get(sentence_text)
+        if page_number_dict:
+            output_data.append({
+                "sentence": sentence_text,
+                "page_number": int(page_number_dict["page_number"]),
+                "page_number_score": float(page_number_dict["page_number_score"]),
+                "page_number_candidate_2": int(page_number_dict["page_number_candidate_2"])
+                if page_number_dict["page_number_candidate_2"] is not None else None,
+                "page_number_candidate_2_score": float(page_number_dict["page_number_candidate_2_score"])
+                if page_number_dict["page_number_candidate_2_score"] is not None else None,
+                "page_number_candidate_3": int(page_number_dict["page_number_candidate_3"])
+                if page_number_dict["page_number_candidate_3"] is not None else None,
+                "page_number_candidate_3_score": float(page_number_dict["page_number_candidate_3_score"])
+                if page_number_dict["page_number_candidate_3_score"] is not None else None,
+            })
+        else:
+            output_data.append({"sentence": sentence_text})
 
     # Convert the output data to JSON string
     json_output = json.dumps(output_data)
