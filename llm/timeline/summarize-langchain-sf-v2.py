@@ -17,9 +17,9 @@ import csv
 
 
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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" 
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
 
 
 # nltk.download('stopwords')
@@ -129,6 +129,7 @@ Next Page Beginning: {next_page_beginning}
 Chronological Event Summary:
 """
 
+
 def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
@@ -137,7 +138,6 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-    
     llm = HuggingFaceEndpoint(
         repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
     )
@@ -146,13 +146,11 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
     response_chain = prompt_response | llm | StrOutputParser()
     vectorizer = TfidfVectorizer()
     output = []
-    
+
     for i in range(len(docs)):
         current_page = docs[i].page_content.replace("\n", " ")
         previous_page_ending = (
-            docs[i - 1].page_content.replace("\n", " ")[-window_size:]
-            if i > 0
-            else ""
+            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
         )
         next_page_beginning = (
             docs[i + 1].page_content.replace("\n", " ")[:window_size]
@@ -160,8 +158,12 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
             else ""
         )
         page_number = docs[i].metadata.get("seq_num")
-        response = {"page_content": "", "page_number": page_number, "similarity_score": 0.0}
-        
+        response = {
+            "page_content": "",
+            "page_number": page_number,
+            "similarity_score": 0.0,
+        }
+
         if current_page:
             processed_content = response_chain.invoke(
                 {
@@ -173,18 +175,21 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
             )
             corpus = [current_page, processed_content]
             tf_idf_matrix = vectorizer.fit_transform(corpus)
-            similarity_score = cosine_similarity(tf_idf_matrix[0:1], tf_idf_matrix[1:2])[0][0]
+            similarity_score = cosine_similarity(
+                tf_idf_matrix[0:1], tf_idf_matrix[1:2]
+            )[0][0]
             response["page_content"] = processed_content
             response["similarity_score"] = similarity_score
-            
+
             if similarity_score >= similarity_threshold:
                 output.append(response)
-    
+
     # # Write the output to a file named "output" in the "../data/" directory
     # with open("../data/output/general_timeline.json", "w") as file:
     #     json.dump(output, file, indent=2)
-    
+
     return output
+
 
 combine_template = """
 As an AI assistant, your task is to combine the provided summaries of a police report into a single, comprehensive, and chronological summary. Please follow these guidelines:
@@ -216,8 +221,6 @@ Combined Comprehensive Summary:
 """
 
 
-
-
 def combine_summaries(summaries):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
@@ -226,7 +229,6 @@ def combine_summaries(summaries):
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-    
     llm = HuggingFaceEndpoint(
         repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
     )
@@ -254,15 +256,17 @@ def combine_summaries(summaries):
 
     return {"page_content": combined_summary, "page_numbers": combined_page_numbers}
 
+
 def map_sentences_to_pages(combined_summary, summaries):
     sentence_embeddings = sentence_model.encode(
-        [str(sent).strip() for sent in nlp(combined_summary).sents]
+        [str(sent).strip() for sent in nlp(combined_summary["page_content"]).sents]
     )
     page_embeddings = [
         sentence_model.encode(summary["page_content"]) for summary in summaries
     ]
+
     sentence_to_page = {}
-    for idx, sentence in enumerate(nlp(combined_summary).sents):
+    for idx, sentence in enumerate(nlp(combined_summary["page_content"]).sents):
         max_similarity = 0
         page_number = None
         for page_idx, page_summary in enumerate(summaries):
@@ -273,23 +277,80 @@ def map_sentences_to_pages(combined_summary, summaries):
                 max_similarity = similarity
                 page_number = page_summary.get("page_number")
         sentence_to_page[str(sentence).strip()] = page_number
+
     return sentence_to_page
 
+
 def process_summaries(summaries):
-    combined_summary_dict = combine_summaries(summaries)
-    combined_summary = combined_summary_dict["page_content"]
-    combined_page_numbers = combined_summary_dict["page_numbers"]
+    combined_summary = combine_summaries(summaries)
+    sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
 
-    # Unpack page_content values into a string
-    combined_content = ""
-    for summary in summaries:
-        combined_content += summary["page_content"] + " "
+    with open("../data/output/combined_summaries.json", "w") as file:
+        json.dump(combined_summary, file, indent=2)
 
-    sentence_to_page = map_sentences_to_pages(combined_content.strip(), summaries)
+    # print("Sentence to page mapping:", sentence_to_page)
+    return combined_summary, sentence_to_page
+
+
+cross_reference_template = """
+As an AI assistant, your task is to compare the ground truth summary with the summary of summaries and identify any missing or inconsistent information. Please follow these steps to augment the summary of summaries:
+
+Carefully review the ground truth summary and identify all key events, details, and relevant information, such as:
+Significant actions taken by individuals involved
+Precise dates, times, and locations of events
+Critical details about the crime, investigation, arrests, and evidence
+Important background information about the individuals involved
+Compare the identified key information from the ground truth summary with the content of the summary of summaries.
+For each piece of key information from the ground truth summary, determine if it is: a) Present in the summary of summaries and consistent b) Present in the summary of summaries but inconsistent or incomplete c) Missing from the summary of summaries entirely
+Based on your analysis, augment the summary of summaries:
+For information that is present and consistent, no changes are needed.
+For information that is present but inconsistent or incomplete, update the relevant parts of the summary of summaries to match the ground truth.
+For information that is missing, add it to the summary of summaries in the most appropriate location to maintain chronological order and narrative flow.
+Ensure that the augmented summary of summaries:
+Includes all the key information from the ground truth summary
+Maintains a coherent structure and logical flow
+Uses clear and concise language
+Is free of inconsistencies or contradictions
+If there is any information in the summary of summaries that directly conflicts with the ground truth summary, prioritize the information from the ground truth summary.
+
+After augmenting the summary of summaries, review it once more to ensure it is a comprehensive, accurate, and well-structured representation of the events described in the ground truth summary.
+
+Your augmented summary must be at least 1000 tokens in length. 
+
+Groundtruth Summary:
+{groundtruth}
+
+Summary of Summaries:
+{summary_of_summaries}
+
+Augmented Summary of Summaries:
+"""
+
+
+def cross_reference_summaries(groundtruth, summary, summaries):
+    # llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+
+    HUGGINGFACEHUB_API_TOKEN = "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"
+    # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+
+    llm = HuggingFaceEndpoint(
+        repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
+    )
+
+    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
+    response_chain = prompt_response | llm | StrOutputParser()
+
+    response = response_chain.invoke(
+        {"groundtruth": groundtruth, "summary_of_summaries": summary}
+    )
+
+    augmented_summary = {"page_content": response}
+    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
 
     # Append page numbers to each sentence in the response
     annotated_response = ""
-    for sentence in nlp(combined_summary).sents:
+    for sentence in nlp(response).sents:
         sentence_text = str(sentence).strip()
         page_number = sentence_to_page.get(sentence_text)
         if page_number:
@@ -297,7 +358,6 @@ def process_summaries(summaries):
         else:
             annotated_response += f"{sentence_text}. "
 
-    # print("Sentence to page mapping:", sentence_to_page)
     return annotated_response, sentence_to_page
 
 
@@ -305,6 +365,7 @@ def write_csv_output(combined_summary, filename, output_file_path):
     with open(output_file_path, "a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([os.path.splitext(filename)[0], combined_summary])
+
 
 if __name__ == "__main__":
     input_directory = "../../ocr/data/output"
@@ -325,6 +386,9 @@ if __name__ == "__main__":
             page_summaries = generate_timeline(docs, query)
             print(page_summaries)
 
-
             combined_summary, sentence_to_page = process_summaries(page_summaries)
-            write_csv_output(combined_summary, filename, output_csv_path)
+            augmented_summary, updated_sentence_to_page = cross_reference_summaries(
+                page_summaries, combined_summary, page_summaries
+            )
+
+            write_csv_output(augmented_summary, filename, output_csv_path)

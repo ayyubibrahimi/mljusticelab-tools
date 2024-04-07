@@ -17,8 +17,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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" 
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
 
 
 logging.basicConfig(
@@ -126,7 +127,6 @@ def generate_timeline(docs, query, similarity_threshold=0.2):
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-    
     llm = HuggingFaceEndpoint(
         repo_id=repo_id, max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
     )
@@ -140,9 +140,13 @@ def generate_timeline(docs, query, similarity_threshold=0.2):
 
     for doc in docs:
         current_page = doc.page_content.replace("\n", " ")
-        page_number = doc.metadata.get("seq_num") 
+        page_number = doc.metadata.get("seq_num")
 
-        response = {"page_content": "", "page_number": page_number, "similarity_score": 0.0}
+        response = {
+            "page_content": "",
+            "page_number": page_number,
+            "similarity_score": 0.0,
+        }
 
         if current_page:
             processed_content = response_chain.invoke(
@@ -154,7 +158,9 @@ def generate_timeline(docs, query, similarity_threshold=0.2):
 
             corpus = [current_page, processed_content]
             tf_idf_matrix = vectorizer.fit_transform(corpus)
-            similarity_score = cosine_similarity(tf_idf_matrix[0:1], tf_idf_matrix[1:2])[0][0]
+            similarity_score = cosine_similarity(
+                tf_idf_matrix[0:1], tf_idf_matrix[1:2]
+            )[0][0]
 
             response["page_content"] = processed_content
             response["similarity_score"] = similarity_score

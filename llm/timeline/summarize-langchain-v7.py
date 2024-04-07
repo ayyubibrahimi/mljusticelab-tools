@@ -250,8 +250,6 @@ def process_summaries(summaries):
     with open("../data/output/combined_summaries.json", "w") as file:
         json.dump(combined_summary, file, indent=2)
 
-
-
     # print("Sentence to page mapping:", sentence_to_page)
     return combined_summary, sentence_to_page
 

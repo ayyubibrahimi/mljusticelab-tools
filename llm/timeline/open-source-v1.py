@@ -18,7 +18,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-
 load_dotenv(find_dotenv())
 
 logging.basicConfig(
@@ -139,9 +138,13 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.15):
 
     for doc in docs:
         current_page = doc.page_content.replace("\n", " ")
-        page_number = doc.metadata.get("seq_num") 
+        page_number = doc.metadata.get("seq_num")
 
-        response = {"page_content": "", "page_number": page_number, "similarity_score": 0.0}
+        response = {
+            "page_content": "",
+            "page_number": page_number,
+            "similarity_score": 0.0,
+        }
 
         if current_page:
             processed_content = response_chain.invoke(
@@ -153,7 +156,9 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.15):
 
             corpus = [current_page, processed_content]
             tf_idf_matrix = vectorizer.fit_transform(corpus)
-            similarity_score = cosine_similarity(tf_idf_matrix[0:1], tf_idf_matrix[1:2])[0][0]
+            similarity_score = cosine_similarity(
+                tf_idf_matrix[0:1], tf_idf_matrix[1:2]
+            )[0][0]
 
             response["page_content"] = processed_content
             response["similarity_score"] = similarity_score

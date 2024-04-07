@@ -12,7 +12,6 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 from langchain_anthropic import ChatAnthropic
-import sys
 
 # nltk.download('stopwords')
 
@@ -230,16 +229,34 @@ def map_sentences_to_pages(combined_summary, summaries):
 
     sentence_to_page = {}
     for idx, sentence in enumerate(nlp(combined_summary["page_content"]).sents):
-        max_similarity = 0
-        page_number = None
+        page_similarities = []
         for page_idx, page_summary in enumerate(summaries):
             similarity = cosine_similarity(
                 [sentence_embeddings[idx]], [page_embeddings[page_idx]]
             )[0][0]
-            if similarity > max_similarity:
-                max_similarity = similarity
-                page_number = page_summary.get("page_number")
-        sentence_to_page[str(sentence).strip()] = page_number
+            page_similarities.append((page_summary.get("page_number"), similarity))
+        page_similarities.sort(key=lambda x: x[1], reverse=True)
+        page_number, score = page_similarities[0]
+        page_number_candidate_2 = (
+            page_similarities[1][0] if len(page_similarities) > 1 else None
+        )
+        page_number_candidate_2_score = (
+            page_similarities[1][1] if len(page_similarities) > 1 else None
+        )
+        page_number_candidate_3 = (
+            page_similarities[2][0] if len(page_similarities) > 2 else None
+        )
+        page_number_candidate_3_score = (
+            page_similarities[2][1] if len(page_similarities) > 2 else None
+        )
+        sentence_to_page[str(sentence).strip()] = {
+            "page_number": page_number,
+            "page_number_score": score,
+            "page_number_candidate_2": page_number_candidate_2,
+            "page_number_candidate_2_score": page_number_candidate_2_score,
+            "page_number_candidate_3": page_number_candidate_3,
+            "page_number_candidate_3_score": page_number_candidate_3_score,
+        }
 
     return sentence_to_page
 
@@ -341,68 +358,89 @@ def compare_summaries(groundtruth, summary):
         {"groundtruth": groundtruth, "summary_of_summaries": summary}
     )
 
-    print(response)
-
     return response
 
 
 def write_json_output(combined_summary, sentence_to_page, output_file_path):
     output_data = []
     for sentence, page_number in sentence_to_page.items():
-        output_data.append({"sentence": sentence, "page_number": page_number})
+        page_number_dict = {
+            "sentence": sentence,
+            "page_number": int(page_number["page_number"]),
+            "page_number_score": float(page_number["page_number_score"]),
+            "page_number_candidate_2": int(page_number["page_number_candidate_2"])
+            if page_number["page_number_candidate_2"] is not None
+            else None,
+            "page_number_candidate_2_score": float(
+                page_number["page_number_candidate_2_score"]
+            )
+            if page_number["page_number_candidate_2_score"] is not None
+            else None,
+            "page_number_candidate_3": int(page_number["page_number_candidate_3"])
+            if page_number["page_number_candidate_3"] is not None
+            else None,
+            "page_number_candidate_3_score": float(
+                page_number["page_number_candidate_3_score"]
+            )
+            if page_number["page_number_candidate_3_score"] is not None
+            else None,
+        }
+        output_data.append(page_number_dict)
 
     with open(output_file_path, "w") as file:
         json.dump(output_data, file, indent=4)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Please provide the path to the JSON file as a command-line argument.")
-        sys.exit(1)
+    input_directory = "../../ocr/data/output"
+    output_directory = "../data/output"
+    for filename in os.listdir(input_directory):
+        if filename.endswith(".json"):
+            json_path = os.path.join(input_directory, filename)
+            docs = load_and_split(json_path)
+            query = "Generate a timeline of events based on the police report."
+            page_summaries = generate_timeline(docs, query)
+            print(page_summaries)
 
-    input_file_path = sys.argv[1]
+            max_iterations = 3
+            iteration = 0
+            while iteration < max_iterations:
+                logger.info(
+                    f"Processing {filename} - Iteration {iteration + 1}/{max_iterations}"
+                )
 
-    try:
-        docs = load_and_split(input_file_path)
-        query = "Generate a timeline of events based on the police report."
-        page_summaries = generate_timeline(docs, query)
+                combined_summary, sentence_to_page = process_summaries(page_summaries)
+                augmented_summary, updated_sentence_to_page = cross_reference_summaries(
+                    page_summaries, combined_summary, page_summaries
+                )
 
-        max_iterations = 3
-        iteration = 0
-        while iteration < max_iterations:
-            logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
+                comparison_score_text = compare_summaries(
+                    page_summaries, combined_summary
+                )
+                score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
+                if score_match:
+                    comparison_score = int(score_match.group(1))
+                else:
+                    comparison_score = int(comparison_score_text.strip())
 
-            combined_summary, sentence_to_page = process_summaries(page_summaries)
-            augmented_summary, updated_sentence_to_page = cross_reference_summaries(
-                page_summaries, combined_summary, page_summaries
+                logger.info(
+                    f"Comparison score for {filename} - Iteration {iteration + 1}: {comparison_score}"
+                )
+
+                if comparison_score >= 8:
+                    logger.info(
+                        f"Satisfactory score achieved for {filename} - Iteration {iteration + 1}"
+                    )
+                    break
+
+                iteration += 1
+
+            if iteration == max_iterations:
+                logger.warning(f"Maximum iterations reached for {filename}")
+
+            output_json_path = os.path.join(
+                output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
             )
-
-            comparison_score_text = compare_summaries(page_summaries, combined_summary)
-            score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
-            if score_match:
-                comparison_score = int(score_match.group(1))
-            else:
-                comparison_score = int(comparison_score_text.strip())
-
-            logger.info(
-                f"Comparison score - Iteration {iteration + 1}: {comparison_score}"
+            write_json_output(
+                augmented_summary, updated_sentence_to_page, output_json_path
             )
-
-            if comparison_score >= 8:
-                logger.info(f"Satisfactory score achieved - Iteration {iteration + 1}")
-                break
-
-            iteration += 1
-
-        if iteration == max_iterations:
-            logger.warning("Maximum iterations reached")
-
-        output_json_path = os.path.join("output", "summary.json")
-        write_json_output(augmented_summary, updated_sentence_to_page, output_json_path)
-
-        print(json.dumps({"success": True, "message": "JSON processed successfully"}))
-
-    except Exception as e:
-        logger.error(f"Error processing JSON: {str(e)}")
-        print(json.dumps({"success": False, "message": "Failed to process JSON"}))
-        sys.exit(1)

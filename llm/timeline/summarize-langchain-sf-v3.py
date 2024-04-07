@@ -1,29 +1,37 @@
+import re
+import torch
+import csv
 import os
 import logging
-from dotenv import find_dotenv, load_dotenv
 import json
 import spacy
-from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline, AutoModelForCausalLM
-from langchain_openai import ChatOpenAI
+from transformers import (
+    AutoTokenizer,
+    AutoModelForTokenClassification,
+    pipeline,
+    AutoModelForCausalLM,
+)
+from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import JSONLoader
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain.prompts import PromptTemplate
+from transformers import pipeline
+from langchain_core.output_parsers import StrOutputParser
 from sklearn.feature_extraction.text import TfidfVectorizer
-import re
-from langchain_anthropic import ChatAnthropic
-import csv
+from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
+
+# nltk.download('stopwords')
 
 
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+def clear_cache():
+    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
 
-# Load the model and tokenizer
-model_name = "mistralai/Mixtral-8x7B-Instruct-v0.1"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name).to("cuda")
-
-load_dotenv(find_dotenv())
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -31,14 +39,42 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+model_name = "HuggingFaceH4/zephyr-7b-beta"
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.bfloat16,
+)
+model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+
 nlp = spacy.load("en_core_web_lg")
-ner_tokenizer = AutoTokenizer.from_pretrained("dslim/bert-base-NER")
-ner_model = AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER")
+tokenizer_ner = AutoTokenizer.from_pretrained("dslim/bert-base-NER")
+model_ner = AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER")
 
 ner_pipeline = pipeline(
-    "ner", model=ner_model, tokenizer=ner_tokenizer, aggregation_strategy="max"
+    "ner", model=model_ner, tokenizer=tokenizer_ner, aggregation_strategy="max"
 )
 sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+text_generation_pipeline = pipeline(
+    model=model,
+    tokenizer=tokenizer,
+    task="text-generation",
+    temperature=0.2,
+    do_sample=True,
+    repetition_penalty=1.1,
+    return_full_text=True,
+    max_new_tokens=400,
+)
+
+llm = HuggingFacePipeline(pipeline=text_generation_pipeline)
 
 
 def preprocess_text(text):
@@ -128,31 +164,17 @@ Next Page Beginning: {next_page_beginning}
 Chronological Event Summary:
 """
 
+
 def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
-    prompt_response = ChatPromptTemplate.from_template(generate_template)
-
-    def _generate(prompt):
-        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = model.generate(
-            **inputs,
-            max_length=128,
-            temperature=0.5,
-            num_return_sequences=1,
-            pad_token_id=tokenizer.eos_token_id
-        )
-        return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    response_chain = prompt_response | _generate | StrOutputParser()
-
+    prompt_response = PromptTemplate.from_template(generate_template)
+    response_chain = prompt_response | llm | StrOutputParser()
     vectorizer = TfidfVectorizer()
     output = []
-    
+
     for i in range(len(docs)):
         current_page = docs[i].page_content.replace("\n", " ")
         previous_page_ending = (
-            docs[i - 1].page_content.replace("\n", " ")[-window_size:]
-            if i > 0
-            else ""
+            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
         )
         next_page_beginning = (
             docs[i + 1].page_content.replace("\n", " ")[:window_size]
@@ -160,8 +182,12 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
             else ""
         )
         page_number = docs[i].metadata.get("seq_num")
-        response = {"page_content": "", "page_number": page_number, "similarity_score": 0.0}
-        
+        response = {
+            "page_content": "",
+            "page_number": page_number,
+            "similarity_score": 0.0,
+        }
+
         if current_page:
             processed_content = response_chain.invoke(
                 {
@@ -173,14 +199,19 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
             )
             corpus = [current_page, processed_content]
             tf_idf_matrix = vectorizer.fit_transform(corpus)
-            similarity_score = cosine_similarity(tf_idf_matrix[0:1], tf_idf_matrix[1:2])[0][0]
+            similarity_score = cosine_similarity(
+                tf_idf_matrix[0:1], tf_idf_matrix[1:2]
+            )[0][0]
             response["page_content"] = processed_content
             response["similarity_score"] = similarity_score
-            
+
             if similarity_score >= similarity_threshold:
                 output.append(response)
-    
+                print(output)
+        clear_cache()
+
     return output
+
 
 combine_template = """
 As an AI assistant, your task is to combine the provided summaries of a police report into a single, comprehensive, and chronological summary. Please follow these guidelines:
@@ -215,18 +246,7 @@ Combined Comprehensive Summary:
 def combine_summaries(summaries):
     prompt_response = ChatPromptTemplate.from_template(combine_template)
 
-    def _generate(prompt):
-        inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = model.generate(
-            **inputs,
-            max_length=128,
-            temperature=0.5,
-            num_return_sequences=1,
-            pad_token_id=tokenizer.eos_token_id
-        )
-        return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    response_chain = prompt_response | _generate | StrOutputParser()
+    response_chain = prompt_response | llm | StrOutputParser()
 
     combined_summary = summaries[0]["page_content"]
     combined_page_numbers = summaries[0].get(
@@ -242,18 +262,24 @@ def combine_summaries(summaries):
         combined_page_numbers.extend(
             summaries[i].get("page_numbers", [summaries[i].get("page_number")])
         )
+        print(f"combined summary: {combined_summary}")
+        clear_cache()
+
+    # print("Combined summary content:", combined_summary)
 
     return {"page_content": combined_summary, "page_numbers": combined_page_numbers}
 
+
 def map_sentences_to_pages(combined_summary, summaries):
     sentence_embeddings = sentence_model.encode(
-        [str(sent).strip() for sent in nlp(combined_summary).sents]
+        [str(sent).strip() for sent in nlp(combined_summary["page_content"]).sents]
     )
     page_embeddings = [
         sentence_model.encode(summary["page_content"]) for summary in summaries
     ]
+
     sentence_to_page = {}
-    for idx, sentence in enumerate(nlp(combined_summary).sents):
+    for idx, sentence in enumerate(nlp(combined_summary["page_content"]).sents):
         max_similarity = 0
         page_number = None
         for page_idx, page_summary in enumerate(summaries):
@@ -264,23 +290,72 @@ def map_sentences_to_pages(combined_summary, summaries):
                 max_similarity = similarity
                 page_number = page_summary.get("page_number")
         sentence_to_page[str(sentence).strip()] = page_number
+
     return sentence_to_page
 
+
 def process_summaries(summaries):
-    combined_summary_dict = combine_summaries(summaries)
-    combined_summary = combined_summary_dict["page_content"]
-    combined_page_numbers = combined_summary_dict["page_numbers"]
+    combined_summary = combine_summaries(summaries)
+    sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
 
-    # Unpack page_content values into a string
-    combined_content = ""
-    for summary in summaries:
-        combined_content += summary["page_content"] + " "
+    with open("../data/output/combined_summaries.json", "w") as file:
+        json.dump(combined_summary, file, indent=2)
 
-    sentence_to_page = map_sentences_to_pages(combined_content.strip(), summaries)
+    # print("Sentence to page mapping:", sentence_to_page)
+    return combined_summary, sentence_to_page
+
+
+cross_reference_template = """
+As an AI assistant, your task is to compare the ground truth summary with the summary of summaries and identify any missing or inconsistent information. Please follow these steps to augment the summary of summaries:
+
+Carefully review the ground truth summary and identify all key events, details, and relevant information, such as:
+Significant actions taken by individuals involved
+Precise dates, times, and locations of events
+Critical details about the crime, investigation, arrests, and evidence
+Important background information about the individuals involved
+Compare the identified key information from the ground truth summary with the content of the summary of summaries.
+For each piece of key information from the ground truth summary, determine if it is: a) Present in the summary of summaries and consistent b) Present in the summary of summaries but inconsistent or incomplete c) Missing from the summary of summaries entirely
+Based on your analysis, augment the summary of summaries:
+For information that is present and consistent, no changes are needed.
+For information that is present but inconsistent or incomplete, update the relevant parts of the summary of summaries to match the ground truth.
+For information that is missing, add it to the summary of summaries in the most appropriate location to maintain chronological order and narrative flow.
+Ensure that the augmented summary of summaries:
+Includes all the key information from the ground truth summary
+Maintains a coherent structure and logical flow
+Uses clear and concise language
+Is free of inconsistencies or contradictions
+If there is any information in the summary of summaries that directly conflicts with the ground truth summary, prioritize the information from the ground truth summary.
+
+After augmenting the summary of summaries, review it once more to ensure it is a comprehensive, accurate, and well-structured representation of the events described in the ground truth summary.
+
+Your augmented summary must be at least 1000 tokens in length. 
+
+Groundtruth Summary:
+{groundtruth}
+
+Summary of Summaries:
+{summary_of_summaries}
+
+Augmented Summary of Summaries:
+"""
+
+
+def cross_reference_summaries(groundtruth, summary, summaries):
+    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
+    response_chain = prompt_response | llm | StrOutputParser()
+
+    response = response_chain.invoke(
+        {"groundtruth": groundtruth, "summary_of_summaries": summary}
+    )
+    print(f"cross reference: {response}")
+    clear_cache()
+
+    augmented_summary = {"page_content": response}
+    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
 
     # Append page numbers to each sentence in the response
     annotated_response = ""
-    for sentence in nlp(combined_summary).sents:
+    for sentence in nlp(response).sents:
         sentence_text = str(sentence).strip()
         page_number = sentence_to_page.get(sentence_text)
         if page_number:
@@ -295,6 +370,7 @@ def write_csv_output(combined_summary, filename, output_file_path):
     with open(output_file_path, "a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([os.path.splitext(filename)[0], combined_summary])
+
 
 if __name__ == "__main__":
     input_directory = "../../ocr/data/output"
@@ -316,4 +392,9 @@ if __name__ == "__main__":
             print(page_summaries)
 
             combined_summary, sentence_to_page = process_summaries(page_summaries)
+            augmented_summary, updated_sentence_to_page = cross_reference_summaries(
+                page_summaries, combined_summary, page_summaries
+            )
+
             write_csv_output(combined_summary, filename, output_csv_path)
+            clear_cache()
