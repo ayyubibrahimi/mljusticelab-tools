@@ -85,23 +85,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // Pass the output file path of ocr.py to toc.py script
             const tocScriptPath = path.join(scriptsDir, 'toc.py');
             const tocProcess = spawn('python3', [tocScriptPath, tempOutputPath]);
-          
+
             let tocOutput = '';
             tocProcess.stdout.on('data', (data) => {
               tocOutput += data.toString();
             });
-          
+
             tocProcess.stderr.on('data', (data) => {
               console.error(`TOC script error: ${data}`);
             });
-          
+
             tocProcess.on('close', (code) => {
               if (code === 0) {
                 try {
                   console.log('TOC output:', tocOutput);
                   const tocData = JSON.parse(tocOutput);
                   console.log('Parsed TOC data:', tocData);
-            
+
                   if (Array.isArray(tocData)) {
                     const pdfFilePath = `/uploads/${file.filename}.pdf`;
                     res.write(JSON.stringify({ tocData, filePath: pdfFilePath }));
@@ -116,6 +116,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               } else {
                 console.error('TOC script failed with code:', code);
                 res.write(JSON.stringify({ error: 'TOC script failed' }));
+              }
+              res.end();
+            });
+          } else if (selectedScript === 'entity.py') {
+            // Pass the output file path of ocr.py to entity.py script
+            const entityScriptPath = path.join(scriptsDir, 'entity.py');
+            const csvOutputPath = `public/uploads/${file.filename}.csv`;
+            const entityProcess = spawn('python3', [entityScriptPath, tempOutputPath, csvOutputPath]);
+
+            entityProcess.stderr.on('data', (data) => {
+              console.error(`Entity script error: ${data}`);
+            });
+
+            entityProcess.on('close', (code) => {
+              if (code === 0) {
+                const csvFilePath = `/uploads/${file.filename}.csv`;
+                res.write(JSON.stringify({ csvFilePath }));
+              } else {
+                console.error('Entity script failed with code:', code);
+                res.write(JSON.stringify({ error: 'Entity script failed' }));
               }
               res.end();
             });

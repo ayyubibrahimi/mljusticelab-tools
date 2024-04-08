@@ -21,17 +21,17 @@ const UploadInterface: React.FC = () => {
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
-  const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py'>('process.py');
+  const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py' | 'entity.py'>('process.py');
   const [pdfPages, setPdfPages] = useState<string[]>([]);
   const [tocData, setTocData] = useState<{ sentence: string; page_number?: number }[]>([]);
-
-  
+  const [csvFilePath, setCsvFilePath] = useState<string | null>(null);
 
   const handleFileUpload = async (file: File) => {
     setProcessingStatus('processing');
     setSentencePagePairs([]);
     setPdfPages([]);
     setTocData([]);
+    setCsvFilePath(null);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -51,18 +51,21 @@ const UploadInterface: React.FC = () => {
           setSentencePagePairs(data.sentencePagePairs);
           setUploadedFilePath(data.filePath);
           console.log('Updated sentencePagePairs state:', data.sentencePagePairs);
-        } if (selectedScript === 'toc.py' && data.tocData) {
+        } else if (selectedScript === 'toc.py' && data.tocData) {
           setTocData(data.tocData);
           setUploadedFilePath(data.filePath);
-          
+
           // Generate the pdfPages array based on the total pages in tocData
           const totalPages = data.tocData.reduce((maxPage, item) => Math.max(maxPage, item.page_number || 0), 0);
-          const pdfPagePaths = Array.from({ length: totalPages }, (_, index) => `/uploads/${file.filename}_page_${index + 1}.pdf`);
+          const pdfPagePaths = Array.from({ length: totalPages }, (_, index) => `/uploads/${file.name}_page_${index + 1}.pdf`);
           setPdfPages(pdfPagePaths);
-          
+
           console.log('Updated tocData state:', data.tocData);
+        } else if (selectedScript === 'entity.py' && data.csvFilePath) {
+          setCsvFilePath(data.csvFilePath);
+          console.log('CSV file path:', data.csvFilePath);
         } else {
-          console.error('Invalid response format. Expected an array of sentence-page pairs or TOC data.');
+          console.error('Invalid response format.');
         }
 
         setProcessingStatus('completed');
@@ -97,8 +100,8 @@ const UploadInterface: React.FC = () => {
         .filter(Boolean)
     ),
   ];
-  
-return (
+
+  return (
     <div className={styles.container}>
       <div className={styles.contentContainer}>
         <Sidebar
@@ -113,11 +116,12 @@ return (
             <div className={styles.scriptDropdown}>
               <select
                 value={selectedScript}
-                onChange={(e) => setSelectedScript(e.target.value as 'process.py' | 'toc.py')}
+                onChange={(e) => setSelectedScript(e.target.value as 'process.py' | 'toc.py' | 'entity.py')}
                 className={styles.scriptSelect}
               >
                 <option value="process.py">Generate Summary</option>
                 <option value="toc.py">Generate Timeline</option>
+                <option value="entity.py">Extract Entities</option>
               </select>
             </div>
           </div>
@@ -126,38 +130,39 @@ return (
               <div className={styles.statusMessage}>The PDF is being processed...</div>
             )}
 
-          {processingStatus === 'completed' && selectedScript === 'process.py' && (
-            <div ref={outputRef}>
-              {sentencePagePairs.map((pair, index) => (
-                <Tippy
-                  key={index}
-                  content={
-                    <>
-                      <div className={styles.tippyTitle}>Associated Pages</div>
-                      <div className={styles.tippyContent}>
-                        <p>Page {pair.page_number} (Probability Score: {pair.page_number_score})</p>
-                        {pair.page_number_candidate_2 && (
-                          <p>Page {pair.page_number_candidate_2} (Probability Score: {pair.page_number_candidate_2_score})</p>
-                        )}
-                        {pair.page_number_candidate_3 && (
-                          <p>Page {pair.page_number_candidate_3} (Probability Score: {pair.page_number_candidate_3_score})</p>
-                        )}
-                      </div>
-                    </>
-                  }
-                  followCursor={true}
-                  plugins={[followCursor]}
-                >
-                  <p
-                    onClick={() => setSelectedPage(pair.page_number)}
-                    className={styles.clickableSentence}
+            {processingStatus === 'completed' && selectedScript === 'process.py' && (
+              <div ref={outputRef}>
+                {sentencePagePairs.map((pair, index) => (
+                  <Tippy
+                    key={index}
+                    content={
+                      <>
+                        <div className={styles.tippyTitle}>Associated Pages</div>
+                        <div className={styles.tippyContent}>
+                          <p>Page {pair.page_number} (Probability Score: {pair.page_number_score})</p>
+                          {pair.page_number_candidate_2 && (
+                            <p>Page {pair.page_number_candidate_2} (Probability Score: {pair.page_number_candidate_2_score})</p>
+                          )}
+                          {pair.page_number_candidate_3 && (
+                            <p>Page {pair.page_number_candidate_3} (Probability Score: {pair.page_number_candidate_3_score})</p>
+                          )}
+                        </div>
+                      </>
+                    }
+                    followCursor={true}
+                    plugins={[followCursor]}
                   >
-                    {pair.sentence}
-                  </p>
-                </Tippy>
-              ))}
-            </div>
-          )}
+                    <p
+                      onClick={() => setSelectedPage(pair.page_number)}
+                      className={styles.clickableSentence}
+                    >
+                      {pair.sentence}
+                    </p>
+                  </Tippy>
+                ))}
+              </div>
+            )}
+
             {processingStatus === 'completed' && selectedScript === 'toc.py' && (
               <div ref={outputRef}>
                 <div className={styles.tocSection}>
@@ -169,6 +174,12 @@ return (
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {processingStatus === 'completed' && selectedScript === 'entity.py' && (
+              <div>
+                <button onClick={() => window.open(csvFilePath, '_blank')}>Download CSV</button>
               </div>
             )}
           </div>

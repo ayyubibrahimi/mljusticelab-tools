@@ -171,8 +171,8 @@ def get_response_from_query(db, query, temperature, k):
     docs = sort_retrived_documents(doc_list)
 
     print(docs)
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
-    llm = ChatAnthropic(model_name="claude-3-sonnet-20240229", anthropic_api_key="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")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
+    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229", anthropic_api_key="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")
 
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", anthropic_api_key="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")
 
@@ -208,14 +208,6 @@ def process_file(input_file_path, output_file_path, embeddings, query):
         for item in officer_data:
             item["page_number"] = page_numbers
             item["fn"] = os.path.basename(input_file_path)
-            item["Prompt Template for Hyde"] = PROMPT_TEMPLATE_HYDE
-            item["Prompt Template for Model"] = template
-            item["Chunk Size"] = CHUNK_SIZE
-            item["Chunk Overlap"] = CHUNK_OVERLAP
-            item["Temperature"] = TEMPERATURE
-            item["k"] = K
-            item["hyde"] = "1"
-            item["model"] = "gpt-3.5-turbo-finetuned"
         output_data.extend(officer_data)
 
         output_df = pd.DataFrame(output_data)
