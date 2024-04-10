@@ -122,9 +122,18 @@ Chronological Event Summary:
 """
 
 
-def generate_timeline(docs, query, window_size=500):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+def generate_timeline(docs, query, selected_model, window_size=500):
+    if selected_model == "gpt-4-0125-preview":
+        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    elif selected_model == "gpt-3.5-0125":
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    elif selected_model == "claude-3-haiku-20240307":
+        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    elif selected_model == "claude-3-sonnet-20240229":
+        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+    else:
+        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+
     prompt_response = ChatPromptTemplate.from_template(generate_template)
     response_chain = prompt_response | llm | StrOutputParser()
     output = []
@@ -193,9 +202,18 @@ Combined Comprehensive Summary:
 """
 
 
-def combine_summaries(summaries):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+def combine_summaries(summaries, selected_model):
+    if selected_model == "gpt-4-0125-preview":
+        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    elif selected_model == "gpt-3.5-0125":
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    elif selected_model == "claude-3-haiku-20240307":
+        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    elif selected_model == "claude-3-sonnet-20240229":
+        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+    else:
+        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+
     prompt_response = ChatPromptTemplate.from_template(combine_template)
 
     response_chain = prompt_response | llm | StrOutputParser()
@@ -264,8 +282,8 @@ def map_sentences_to_pages(combined_summary, summaries):
     return sentence_to_page
 
 
-def process_summaries(summaries):
-    combined_summary = combine_summaries(summaries)
+def process_summaries(summaries, selected_model):
+    combined_summary = combine_summaries(summaries, selected_model)
     sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
 
     # with open("../data/output/combined_summaries.json", "w") as file:
@@ -312,12 +330,17 @@ Augmented Summary of Summaries:
 """
 
 
-def cross_reference_summaries(groundtruth, summary, summaries):
-    # llm = ChatOpenAI(model_name="gpt-4-0125-preview")
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
-
-    llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+def cross_reference_summaries(groundtruth, summary, summaries, selected_model):
+    if selected_model == "gpt-4-0125-preview":
+        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    elif selected_model == "gpt-3.5-0125":
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    elif selected_model == "claude-3-haiku-20240307":
+        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    elif selected_model == "claude-3-sonnet-20240229":
+        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+    else:
+        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
 
     prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
     response_chain = prompt_response | llm | StrOutputParser()
@@ -352,10 +375,18 @@ Limit your response to the score.
 """
 
 
-def compare_summaries(groundtruth, summary):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+def compare_summaries(groundtruth, summary, selected_model):
+    if selected_model == "gpt-4-0125-preview":
+        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    elif selected_model == "gpt-3.5-0125":
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    elif selected_model == "claude-3-haiku-20240307":
+        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    elif selected_model == "claude-3-sonnet-20240229":
+        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+    else:
+        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+        
     prompt_response = ChatPromptTemplate.from_template(comparison_template)
     response_chain = prompt_response | llm | StrOutputParser()
 
@@ -406,19 +437,21 @@ if __name__ == "__main__":
     try:
         docs = load_and_split(input_file_path)
         query = "Generate a timeline of events based on the police report."
-        page_summaries = generate_timeline(docs, query)
+        selected_model = sys.argv[2]  # Get the selected model from command-line arguments
+        # print('Selected model in process.py:', selected_model)
+        page_summaries = generate_timeline(docs, query, selected_model)
 
         max_iterations = 3
         iteration = 0
         while iteration < max_iterations:
             # logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
 
-            combined_summary, sentence_to_page = process_summaries(page_summaries)
+            combined_summary, sentence_to_page = process_summaries(page_summaries, selected_model)
             augmented_summary, updated_sentence_to_page = cross_reference_summaries(
-                page_summaries, combined_summary, page_summaries
+                page_summaries, combined_summary, page_summaries, selected_model
             )
 
-            comparison_score_text = compare_summaries(page_summaries, combined_summary)
+            comparison_score_text = compare_summaries(page_summaries, combined_summary, selected_model)
             score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
             if score_match:
                 comparison_score = int(score_match.group(1))

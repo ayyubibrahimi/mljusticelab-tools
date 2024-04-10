@@ -48,11 +48,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ocrProcess.on('close', (code) => {
         if (code === 0) {
           const selectedScript = req.body.script; // Get the selected script from the request body
+          const selectedModel = req.body.model; // Get the selected model from the request body
 
           if (selectedScript === 'process.py') {
             // Pass the output file path of ocr.py to process.py script
             const processScriptPath = path.join(scriptsDir, 'process.py');
-            const processProcess = spawn('python3', [processScriptPath, tempOutputPath]);
+            const processProcess = spawn('python3', [processScriptPath, tempOutputPath, selectedModel]); // Pass the selected model as a command-line argument
 
             let processOutput = '';
             processProcess.stdout.on('data', (data) => {

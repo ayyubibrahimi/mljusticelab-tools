@@ -25,6 +25,8 @@ const UploadInterface: React.FC = () => {
   const [pdfPages, setPdfPages] = useState<string[]>([]);
   const [tocData, setTocData] = useState<{ sentence: string; page_number?: number }[]>([]);
   const [csvFilePath, setCsvFilePath] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+
 
   const handleFileUpload = async (file: File) => {
     setProcessingStatus('processing');
@@ -36,6 +38,8 @@ const UploadInterface: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('script', selectedScript);
+    formData.append('model', selectedModel); // Add the selected model to the form data
+
 
     try {
       const response = await fetch('/api/upload', {
@@ -111,8 +115,8 @@ const UploadInterface: React.FC = () => {
           tocData={tocData}
         />
         <div className={styles.outputContainer}>
-          <div className={styles.outputHeader}>
-            <span>Innocence Lab</span>
+        <div className={styles.outputHeader}>
+          <div className={styles.dropdownContainer}>
             <div className={styles.scriptDropdown}>
               <select
                 value={selectedScript}
@@ -124,7 +128,24 @@ const UploadInterface: React.FC = () => {
                 <option value="entity.py">Extract Entities</option>
               </select>
             </div>
+            <div className={styles.modelDropdown}>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className={styles.modelSelect}
+              >
+                <option value="">Select Model</option>
+                <option value="gpt-4-0125-preview">GPT-4</option>
+                <option value="gpt-3.5-0125">GPT-3.5</option>
+                <option value="claude-3-haiku-20240307">Claude (Haiku)</option>
+                <option value="claude-3-sonnet-20240229">Claude (Sonnet)</option>
+                <option value="claude-3-opus-20240229">Claude (Opus)</option>
+              </select>
+            </div>
           </div>
+          <span>Innocence Lab</span>
+        </div>
+
           <div className={styles.outputContent}>
             {processingStatus === 'processing' && (
               <div className={styles.statusMessage}>The PDF is being processed...</div>

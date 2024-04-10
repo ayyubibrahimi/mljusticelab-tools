@@ -104,14 +104,7 @@
   opacity: 1;
 }
 
-.outputHeader {
-  text-align: center;
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  font-family: 'Montserrat';
-  color: #888;
-}
+
 .uploadForm {
   display: flex;
   justify-content: center;
@@ -176,10 +169,39 @@
     cursor: not-allowed;
   }
 }
-.scriptDropdown {
-  margin-left: 20px;
+
+.tippyTitle {
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.outputHeader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  font-family: 'Montserrat';
+  color: #888;
+  width: 100%;
   position: relative;
-  
+}
+
+.dropdownContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scriptDropdown,
+.modelDropdown {
+  position: relative;
 
   &::after {
     content: '▼';
@@ -189,14 +211,13 @@
     transform: translateY(-50%);
     color: #fff;
     pointer-events: none;
-    font-size: 0.7em; /* Adjust this value as needed to decrease the size of the caret */
+    font-size: 0.7em;
     font-family: 'Montserrat';
-
-
   }
 }
 
-.scriptSelect {
+.scriptSelect,
+.modelSelect {
   appearance: none;
   background-color: #888;
   border: none;
@@ -210,6 +231,8 @@
   border-radius: 4px;
   transition: background-color 0.3s;
   font-family: 'Montserrat';
+  width: 100%; /* Add this line to make the width 100% */
+  box-sizing: border-box; /* Add this line to include padding in the width calculation */
 
   &:hover {
     background-color: #777;
@@ -223,10 +246,4 @@
     background-color: #fff;
     color: #333;
   }
-}
-
-.tippyTitle {
-  font-weight: bold;
-  text-align: center;
-  margin-bottom: 8px;
 }

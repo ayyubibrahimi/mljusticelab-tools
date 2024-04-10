@@ -18,6 +18,7 @@ import numpy as np
 from langchain_anthropic import ChatAnthropic
 
 import sys
+from langchain_openai import ChatOpenAI
 
 
 nlp = spacy.load("en_core_web_lg")
@@ -171,10 +172,10 @@ def get_response_from_query(db, query, temperature, k):
     docs = sort_retrived_documents(doc_list)
 
     print(docs)
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
-    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229", anthropic_api_key="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")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229",)
 
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", anthropic_api_key="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")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
     prompt_response = ChatPromptTemplate.from_template(template)
     response_chain = prompt_response | llm | StrOutputParser()
