@@ -23,12 +23,12 @@ PROMPT_TEMPLATE_HYDE = PromptTemplate(
 )
 
 def generate_hypothetical_embeddings():
-    llm = OpenAI(api_key="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")
+    llm = OpenAI(api_key="")
     prompt = PROMPT_TEMPLATE_HYDE
 
     llm_chain = LLMChain(llm=llm, prompt=prompt)
 
-    base_embeddings = OpenAIEmbeddings(api_key="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")
+    base_embeddings = OpenAIEmbeddings(api_key="")
 
     embeddings = HypotheticalDocumentEmbedder(
         llm_chain=llm_chain, base_embeddings=base_embeddings

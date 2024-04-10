@@ -19,7 +19,7 @@ import csv
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = ""
 
 
 # nltk.download('stopwords')
@@ -225,7 +225,7 @@ def combine_summaries(summaries):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
-    HUGGINGFACEHUB_API_TOKEN = "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"
+    HUGGINGFACEHUB_API_TOKEN = ""
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 

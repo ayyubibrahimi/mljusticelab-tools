@@ -22,7 +22,7 @@ load_dotenv(find_dotenv())
 
 import os
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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" 
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = "" 
 
 
 logging.basicConfig(
