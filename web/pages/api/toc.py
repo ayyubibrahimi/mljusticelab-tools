@@ -13,16 +13,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from langchain_anthropic import ChatAnthropic
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    ListFlowable,
-    ListItem,
-)
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import sys
 
 

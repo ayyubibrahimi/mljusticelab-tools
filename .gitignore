@@ -9,3 +9,4 @@ map/
 *.pdf
 *.json
 node_modules/
+myenv/

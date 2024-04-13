@@ -427,32 +427,34 @@ def write_json_output(combined_summary, sentence_to_page):
 
 
 
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Please provide the path to the JSON file as a command-line argument.")
+    if len(sys.argv) < 3:
+        print("Please provide the path to the JSON file and the selected model as command-line arguments.")
         sys.exit(1)
 
     input_file_path = sys.argv[1]
+    selected_model = sys.argv[2]  # Get the selected model from command-line arguments
 
     try:
         docs = load_and_split(input_file_path)
         query = "Generate a timeline of events based on the police report."
-        selected_model = sys.argv[2]  # Get the selected model from command-line arguments
+
         # print('Selected model in process.py:', selected_model)
         page_summaries = generate_timeline(docs, query, selected_model)
 
         max_iterations = 3
         iteration = 0
+
         while iteration < max_iterations:
             # logger.info(f"Processing - Iteration {iteration + 1}/{max_iterations}")
-
             combined_summary, sentence_to_page = process_summaries(page_summaries, selected_model)
             augmented_summary, updated_sentence_to_page = cross_reference_summaries(
                 page_summaries, combined_summary, page_summaries, selected_model
             )
-
             comparison_score_text = compare_summaries(page_summaries, combined_summary, selected_model)
             score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
+
             if score_match:
                 comparison_score = int(score_match.group(1))
             else:
@@ -463,6 +465,16 @@ if __name__ == "__main__":
             if comparison_score >= 8:
                 # logger.info(f"Satisfactory score achieved - Iteration {iteration + 1}")
                 write_json_output(augmented_summary, updated_sentence_to_page)
+
+                try:
+                    # Code that might raise a bus error
+                    pass
+                except Exception as e:
+                    if "bus error" in str(e):
+                        logger.warning("Bus error occurred, but ignoring it.")
+                    else:
+                        raise e
+
                 break
 
             iteration += 1

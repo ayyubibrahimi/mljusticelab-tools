@@ -46,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       ocrProcess.on('close', (code) => {
+        
         if (code === 0) {
           const selectedScript = req.body.script; // Get the selected script from the request body
           const selectedModel = req.body.model; // Get the selected model from the request body
@@ -53,40 +54,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (selectedScript === 'process.py') {
             // Pass the output file path of ocr.py to process.py script
             const processScriptPath = path.join(scriptsDir, 'process.py');
-            const processProcess = spawn('python3', [processScriptPath, tempOutputPath, selectedModel]); // Pass the selected model as a command-line argument
+            const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
+            const processProcess = spawn(myenvPath, [processScriptPath, tempOutputPath, selectedModel]);
 
             let processOutput = '';
+
             processProcess.stdout.on('data', (data) => {
               processOutput += data.toString();
             });
-
+            
             processProcess.stderr.on('data', (data) => {
-              console.error(`Process script error: ${data}`);
+              console.error('Process script error:', data.toString());
             });
-
+            
             processProcess.on('close', (code) => {
+              console.log('Process script output:', processOutput);
+            
               if (code === 0) {
                 try {
-                  console.log('Process output:', processOutput);
                   const sentencePagePairs = JSON.parse(processOutput);
-                  console.log('Parsed sentence-page pairs:', sentencePagePairs);
-                  const pdfFilePath = `/uploads/${file.filename}.pdf`;
-                  res.write(JSON.stringify({ sentencePagePairs, filePath: pdfFilePath }));
+                  if (sentencePagePairs !== null) {
+                    console.log('Parsed sentence-page pairs:', sentencePagePairs);
+                    const pdfFilePath = `uploads/${file.filename}.pdf`;
+                    const responseData = JSON.stringify({ sentencePagePairs, filePath: pdfFilePath });
+                    res.write(responseData);
+                  } else {
+                    console.error('Parsed sentence-page pairs is null');
+                    const errorData = JSON.stringify({ error: 'Parsed sentence-page pairs is null' });
+                    res.write(errorData);
+                  }
                 } catch (error) {
                   console.error('Error parsing process output:', error);
-                  res.write(JSON.stringify({ error: 'Error parsing process output' }));
+                  const errorData = JSON.stringify({ error: 'Error parsing process output', errorDetails: error.message });
+                  res.write(errorData);
                 }
+                res.end();
               } else {
                 console.error('Process script failed with code:', code);
-                res.write(JSON.stringify({ error: 'Process script failed' }));
+                const errorData = JSON.stringify({ error: 'Process script failed', errorDetails: processOutput });
+                res.write(errorData);
+                res.end();
               }
-              res.end();
             });
           } else if (selectedScript === 'toc.py') {
             // Pass the output file path of ocr.py to toc.py script
             const tocScriptPath = path.join(scriptsDir, 'toc.py');
-            const tocProcess = spawn('python3', [tocScriptPath, tempOutputPath]);
-
+            const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
+            const tocProcess = spawn(myenvPath, [tocScriptPath, tempOutputPath]);
+    
             let tocOutput = '';
             tocProcess.stdout.on('data', (data) => {
               tocOutput += data.toString();
@@ -104,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   console.log('Parsed TOC data:', tocData);
 
                   if (Array.isArray(tocData)) {
-                    const pdfFilePath = `/uploads/${file.filename}.pdf`;
+                    const pdfFilePath = `public/uploads/${file.filename}.pdf`;
                     res.write(JSON.stringify({ tocData, filePath: pdfFilePath }));
                   } else {
                     console.error('Invalid TOC data format');
