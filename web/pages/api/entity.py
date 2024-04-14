@@ -172,10 +172,10 @@ def get_response_from_query(db, query, temperature, k):
     docs = sort_retrived_documents(doc_list)
 
     print(docs)
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     # llm = ChatAnthropic(model_name="claude-3-sonnet-20240229",)
 
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307", anthropic_api_key="")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", anthropic_api_key="")
 
     prompt_response = ChatPromptTemplate.from_template(template)
     response_chain = prompt_response | llm | StrOutputParser()

@@ -2,31 +2,44 @@ import React, { useState } from 'react';
 import styles from './UploadInterface.module.scss';
 
 interface FileUploadProps {
-  onFileUpload: (file: File) => void;
+  onFileUpload: (files: File[]) => void;
   disabled?: boolean;
+  multiple?: boolean;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled }) => {
-  const [file, setFile] = useState<File | null>(null);
+const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled, multiple }) => {
+  const [files, setFiles] = useState<File[]>([]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFile(event.target.files?.[0] || null);
+    const selectedFiles = event.target.files;
+    if (selectedFiles) {
+      setFiles(Array.from(selectedFiles));
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file) {
-      alert('Please select a PDF file to upload.');
+    if (files.length === 0) {
+      alert('Please select one or more PDF files to upload.');
       return;
     }
-    onFileUpload(file);
+    onFileUpload(files);
   };
 
   return (
     <form onSubmit={handleSubmit} className={styles.uploadForm}>
       <div className={styles.uploadInputContainer}>
-        <input type="file" accept=".pdf" onChange={handleFileChange} className={styles.fileInput} id="fileInput" />
-        <label htmlFor="fileInput" className={styles.fileInputLabel}>Choose file</label>
+        <input
+          type="file"
+          accept=".pdf"
+          onChange={handleFileChange}
+          className={styles.fileInput}
+          id="fileInput"
+          multiple={multiple}
+        />
+        <label htmlFor="fileInput" className={styles.fileInputLabel}>
+          Choose files
+        </label>
         <button type="submit" disabled={disabled} className={styles.processButton}>
           {disabled ? 'Processing...' : 'Process'}
         </button>

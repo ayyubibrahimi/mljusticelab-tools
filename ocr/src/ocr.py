@@ -148,7 +148,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.INFO)
     azurelogger.setLevel(logging.ERROR)
 
-    doc_directory = "../data/input"
+    doc_directory = "../data/input/folder"
 
     endpoint, key = getcreds()
     client = DocClient(endpoint, key)

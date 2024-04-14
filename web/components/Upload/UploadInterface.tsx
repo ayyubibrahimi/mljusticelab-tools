@@ -21,24 +21,42 @@ const UploadInterface: React.FC = () => {
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
-  const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py' | 'entity.py'>('process.py');
   const [pdfPages, setPdfPages] = useState<string[]>([]);
-  const [tocData, setTocData] = useState<{ sentence: string; page_number?: number }[]>([]);
+
+  interface TocItem {
+    sentence: { text: string }[];
+    page_number: number;
+  }
+  
+  const [tocData, setTocData] = useState<TocItem[]>([]);
+  
   const [csvFilePath, setCsvFilePath] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py'>('process.py');
 
+  interface BulkSummaryItem {
+    filename: string;
+    summary: string;
+    total_pages: number;
+  }
+  
+  const [bulkSummary, setBulkSummary] = useState<BulkSummaryItem[]>([]);
+  
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (files: File[]) => {
     setProcessingStatus('processing');
     setSentencePagePairs([]);
     setPdfPages([]);
     setTocData([]);
     setCsvFilePath(null);
+    setBulkSummary(null);
 
     const formData = new FormData();
-    formData.append('file', file);
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
     formData.append('script', selectedScript);
-    formData.append('model', selectedModel); // Add the selected model to the form data
+    formData.append('model', selectedModel);
 
 
     try {
@@ -55,9 +73,10 @@ const UploadInterface: React.FC = () => {
           setSentencePagePairs(data.sentencePagePairs);
           setUploadedFilePath(data.filePath);
           console.log('Updated sentencePagePairs state:', data.sentencePagePairs);
-        } else if (selectedScript === 'toc.py' && data.tocData) {
+        } if (selectedScript === 'toc.py' && data.tocData) {
           setTocData(data.tocData);
           setUploadedFilePath(data.filePath);
+          console.log('Updated tocData state:', data.tocData);
 
           // Generate the pdfPages array based on the total pages in tocData
           const totalPages = data.tocData.reduce((maxPage, item) => Math.max(maxPage, item.page_number || 0), 0);
@@ -68,9 +87,15 @@ const UploadInterface: React.FC = () => {
         } else if (selectedScript === 'entity.py' && data.csvFilePath) {
           setCsvFilePath(data.csvFilePath);
           console.log('CSV file path:', data.csvFilePath);
+        }
+
+        if (selectedScript === 'bulk_summary.py' && Array.isArray(data.summaries)) {
+          setBulkSummary(data.summaries);
+          console.log('Updated bulkSummary state:', data.summaries);
         } else {
           console.error('Invalid response format.');
         }
+    
 
         setProcessingStatus('completed');
       } else {
@@ -115,42 +140,43 @@ const UploadInterface: React.FC = () => {
           tocData={tocData}
         />
         <div className={styles.outputContainer}>
-        <div className={styles.outputHeader}>
-          <div className={styles.dropdownContainer}>
-            <div className={styles.scriptDropdown}>
-              <select
-                value={selectedScript}
-                onChange={(e) => setSelectedScript(e.target.value as 'process.py' | 'toc.py' | 'entity.py')}
-                className={styles.scriptSelect}
-              >
-                <option value="process.py">Generate Summary</option>
-                <option value="toc.py">Generate Timeline</option>
-                <option value="entity.py">Extract Entities</option>
-              </select>
+          <div className={styles.outputHeader}>
+            <div className={styles.dropdownContainer}>
+              <div className={styles.scriptDropdown}>
+                <select
+                  value={selectedScript}
+                  onChange={(e) => setSelectedScript(e.target.value as 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py')}
+                  className={styles.scriptSelect}
+                >
+                  <option value="process.py">Generate Summary</option>
+                  <option value="toc.py">Generate Timeline</option>
+                  <option value="entity.py">Extract Entities</option>
+                  <option value="bulk_summary.py">Bulk Summary</option>
+                </select>
+              </div>
+              <div className={styles.modelDropdown}>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className={styles.modelSelect}
+                >
+                  <option value="">Select Model</option>
+                  <option value="gpt-4-0125-preview">GPT-4</option>
+                  <option value="gpt-3.5-0125">GPT-3.5</option>
+                  <option value="claude-3-haiku-20240307">Claude (Haiku)</option>
+                  <option value="claude-3-sonnet-20240229">Claude (Sonnet)</option>
+                  <option value="claude-3-opus-20240229">Claude (Opus)</option>
+                </select>
+              </div>
             </div>
-            <div className={styles.modelDropdown}>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className={styles.modelSelect}
-              >
-                <option value="">Select Model</option>
-                <option value="gpt-4-0125-preview">GPT-4</option>
-                <option value="gpt-3.5-0125">GPT-3.5</option>
-                <option value="claude-3-haiku-20240307">Claude (Haiku)</option>
-                <option value="claude-3-sonnet-20240229">Claude (Sonnet)</option>
-                <option value="claude-3-opus-20240229">Claude (Opus)</option>
-              </select>
-            </div>
+            <span>Innocence Lab</span>
           </div>
-          <span>Innocence Lab</span>
-        </div>
-
+  
           <div className={styles.outputContent}>
             {processingStatus === 'processing' && (
               <div className={styles.statusMessage}>The PDF is being processed...</div>
             )}
-
+  
             {processingStatus === 'completed' && selectedScript === 'process.py' && (
               <div ref={outputRef}>
                 {sentencePagePairs.map((pair, index) => (
@@ -183,29 +209,48 @@ const UploadInterface: React.FC = () => {
                 ))}
               </div>
             )}
-
-            {processingStatus === 'completed' && selectedScript === 'toc.py' && (
+          
+          
+          {processingStatus === 'completed' && selectedScript === 'toc.py' && (
               <div ref={outputRef}>
                 <div className={styles.tocSection}>
                   {tocData.map((pageData, pageIndex) => (
                     <div key={pageIndex}>
+                      <h2>Page {pageData.page_number}</h2>
                       {pageData.sentence.map((sentenceData, sentenceIndex) => (
-                        <p key={sentenceIndex}>{sentenceData.text}</p>
+                        <p key={`${pageIndex}-${sentenceIndex}`}>{sentenceData.text}</p>
                       ))}
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
+            
             {processingStatus === 'completed' && selectedScript === 'entity.py' && (
               <div>
                 <button onClick={() => window.open(csvFilePath, '_blank')}>Download CSV</button>
               </div>
             )}
+            
+            {processingStatus === 'completed' && selectedScript === 'bulk_summary.py' && (
+              <div ref={outputRef}>
+                {bulkSummary.length > 0 ? (
+                  bulkSummary.map((item, index) => (
+                    <div key={index}>
+                      <h3>File: {item.filename}</h3>
+                      <p>Total Pages: {item.total_pages}</p>
+                      <p>{item.summary}</p>
+                      <hr />
+                    </div>
+                  ))
+                ) : (
+                  <p>No summary available</p>
+                )}
+              </div>
+            )}
           </div>
           <div className={styles.uploadSection}>
-            <FileUpload onFileUpload={handleFileUpload} disabled={processingStatus === 'processing'} />
+            <FileUpload onFileUpload={handleFileUpload} disabled={processingStatus === 'processing'} multiple />
           </div>
         </div>
       </div>
@@ -214,6 +259,5 @@ const UploadInterface: React.FC = () => {
       )}
     </div>
   );
-};
-
+}
 export default UploadInterface;

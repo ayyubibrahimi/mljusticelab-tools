@@ -16,40 +16,107 @@ const scriptsDir = path.join(process.cwd(), 'pages/api');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'POST') {
-    upload.single('file')(req, res, async (err) => {
+    const uploadMiddleware = upload.fields([{ name: 'files', maxCount: 10 }]);
+
+    uploadMiddleware(req, res, async (err) => {
       if (err) {
         res.status(500).json({ error: 'File upload failed' });
         return;
       }
 
-      const file = req.file;
-      if (!file) {
-        res.status(400).json({ error: 'No file uploaded' });
+      const files = req.files?.['files'] as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        res.status(400).json({ error: 'No files uploaded' });
         return;
       }
 
-      const tempFilePath = `public/uploads/${file.filename}.pdf`;
-      fs.renameSync(file.path, tempFilePath);
-      const tempOutputPath = `public/uploads/${file.filename}.json`;
+      const selectedScript = req.body.script;
+      const selectedModel = req.body.model;
 
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Transfer-Encoding': 'chunked',
+      const ocrOutputDirectory = 'public/ocr_output/';
+      if (!fs.existsSync(ocrOutputDirectory)) {
+        fs.mkdirSync(ocrOutputDirectory);
+      }
+
+      // Create a new directory for the current batch of files
+      const batchDirectory = `${ocrOutputDirectory}batch_${Date.now()}/`;
+      fs.mkdirSync(batchDirectory);
+
+      const ocrPromises = files.map((file) => {
+        const tempFilePath = `public/uploads/${file.filename}.pdf`;
+        fs.renameSync(file.path, tempFilePath);
+        const tempOutputPath = `${batchDirectory}${file.filename}.json`;
+
+        const ocrScriptPath = path.join(scriptsDir, 'ocr.py');
+        const ocrProcess = spawn('python3', [ocrScriptPath, tempFilePath, tempOutputPath]);
+
+        return new Promise((resolve, reject) => {
+          ocrProcess.stderr.on('data', (data) => {
+            console.error(`OCR script error: ${data}`);
+          });
+
+          ocrProcess.on('close', (code) => {
+            if (code === 0) {
+              resolve(tempOutputPath);
+            } else {
+              reject(new Error('OCR script failed'));
+            }
+          });
+        });
       });
 
-      // Process the PDF with ocr.py script
-      const ocrScriptPath = path.join(scriptsDir, 'ocr.py');
-      const ocrProcess = spawn('python3', [ocrScriptPath, tempFilePath, tempOutputPath]);
+      try {
+        await Promise.all(ocrPromises);
 
-      ocrProcess.stderr.on('data', (data) => {
-        console.error(`OCR script error: ${data}`);
-      });
-
-      ocrProcess.on('close', (code) => {
+        if (selectedScript === 'bulk_summary.py') {
+          const bulkSummaryScriptPath = path.join(scriptsDir, 'bulk_summary.py');
+          const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
+          const bulkSummaryProcess = spawn(myenvPath, [bulkSummaryScriptPath, batchDirectory, selectedModel]);
+          let bulkSummaryOutput = '';
         
-        if (code === 0) {
-          const selectedScript = req.body.script; // Get the selected script from the request body
-          const selectedModel = req.body.model; // Get the selected model from the request body
+          bulkSummaryProcess.stdout.on('data', (data) => {
+            bulkSummaryOutput += data.toString();
+            console.log('Bulk summary script output:', data.toString());
+          });
+        
+          bulkSummaryProcess.stderr.on('data', (data) => {
+            console.error('Bulk summary script error:', data.toString());
+          });
+        
+          bulkSummaryProcess.on('close', (code) => {
+            if (code === 0) {
+              try {
+                const parsedOutput = JSON.parse(bulkSummaryOutput);
+                const { summaries } = parsedOutput;
+                const summariesWithFilenames = summaries.map((summary, index) => ({
+                  filename: files[index].originalname, // Add the original filename here
+                  summary: summary.summary,
+                  total_pages: summary.total_pages,
+                }));
+                res.status(200).json({ summaries: summariesWithFilenames });
+              } catch (error) {
+                console.error('Error parsing bulk summary output:', error);
+                res.status(500).json({ error: 'Error parsing bulk summary output' });
+              }
+            } else {
+              console.error('Bulk summary script failed with code:', code);
+              res.status(500).json({ error: 'Bulk summary script failed' });
+            }
+          });
+        
+          bulkSummaryProcess.on('error', (error) => {
+            console.error('An error occurred while running the bulk summary script:', error);
+            res.status(500).json({ error: 'An error occurred while running the bulk summary script' });
+          });
+        } else {
+          const file = files[0];
+          const tempFilePath = `public/uploads/${file.filename}.pdf`;
+          const tempOutputPath = `${batchDirectory}${file.filename}.json`;
+
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Transfer-Encoding': 'chunked',
+          });
 
           if (selectedScript === 'process.py') {
             // Pass the output file path of ocr.py to process.py script
@@ -97,43 +164,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               }
             });
           } else if (selectedScript === 'toc.py') {
-            // Pass the output file path of ocr.py to toc.py script
             const tocScriptPath = path.join(scriptsDir, 'toc.py');
             const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
             const tocProcess = spawn(myenvPath, [tocScriptPath, tempOutputPath]);
-    
+          
             let tocOutput = '';
             tocProcess.stdout.on('data', (data) => {
               tocOutput += data.toString();
             });
-
+          
             tocProcess.stderr.on('data', (data) => {
               console.error(`TOC script error: ${data}`);
             });
-
+          
             tocProcess.on('close', (code) => {
               if (code === 0) {
                 try {
                   console.log('TOC output:', tocOutput);
                   const tocData = JSON.parse(tocOutput);
                   console.log('Parsed TOC data:', tocData);
-
+          
+                  // Ensure the structure sent to the client matches expected format
                   if (Array.isArray(tocData)) {
-                    const pdfFilePath = `public/uploads/${file.filename}.pdf`;
-                    res.write(JSON.stringify({ tocData, filePath: pdfFilePath }));
+                    const responseData = {
+                      tocData,
+                      filePath: `uploads/${file.filename}.pdf` // Assuming the PDF is accessible via this path
+                    };
+                    res.status(200).json(responseData);
                   } else {
                     console.error('Invalid TOC data format');
-                    res.write(JSON.stringify({ error: 'Invalid TOC data format' }));
+                    res.status(500).json({ error: 'Invalid TOC data format' });
                   }
                 } catch (error) {
                   console.error('Error parsing TOC output:', error);
-                  res.write(JSON.stringify({ error: 'Error parsing TOC output' }));
+                  res.status(500).json({ error: 'Error parsing TOC output', details: error.message });
                 }
               } else {
                 console.error('TOC script failed with code:', code);
-                res.write(JSON.stringify({ error: 'TOC script failed' }));
+                res.status(500).json({ error: 'TOC script failed' });
               }
-              res.end();
             });
           } else if (selectedScript === 'entity.py') {
             // Pass the output file path of ocr.py to entity.py script
@@ -159,11 +228,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             res.write(JSON.stringify({ error: 'Invalid script selected' }));
             res.end();
           }
-        } else {
-          console.error('OCR script failed with code:', code);
-          res.end(JSON.stringify({ error: 'OCR script failed' }));
         }
-      });
+      } catch (error) {
+        console.error('OCR script failed:', error);
+        res.status(500).json({ error: 'OCR script failed' });
+      }
     });
   } else {
     res.status(405).json({ error: 'Method not allowed' });

@@ -56,6 +56,7 @@ class DocClient:
                         logging.error(f"OCR failed for page {i+1} of file {pdf_path}")
                         continue
                     page_results = self.extract_content(result)
+                    page_results = {f"page_{i+1}": page_results[f"page_1"]}
                     all_pages_content.append(page_results)
                 except azure.core.exceptions.HttpResponseError as e:
                     logging.error(f"Error processing page {i+1} of file {pdf_path}: {e}")
