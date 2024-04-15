@@ -78,12 +78,6 @@ const UploadInterface: React.FC = () => {
           setUploadedFilePath(data.filePath);
           console.log('Updated tocData state:', data.tocData);
 
-          // Generate the pdfPages array based on the total pages in tocData
-          const totalPages = data.tocData.reduce((maxPage, item) => Math.max(maxPage, item.page_number || 0), 0);
-          const pdfPagePaths = Array.from({ length: totalPages }, (_, index) => `/uploads/${file.name}_page_${index + 1}.pdf`);
-          setPdfPages(pdfPagePaths);
-
-          console.log('Updated tocData state:', data.tocData);
         } else if (selectedScript === 'entity.py' && data.csvFilePath) {
           setCsvFilePath(data.csvFilePath);
           console.log('CSV file path:', data.csvFilePath);
@@ -216,7 +210,6 @@ const UploadInterface: React.FC = () => {
                 <div className={styles.tocSection}>
                   {tocData.map((pageData, pageIndex) => (
                     <div key={pageIndex}>
-                      <h2>Page {pageData.page_number}</h2>
                       {pageData.sentence.map((sentenceData, sentenceIndex) => (
                         <p key={`${pageIndex}-${sentenceIndex}`}>{sentenceData.text}</p>
                       ))}
@@ -225,7 +218,7 @@ const UploadInterface: React.FC = () => {
                 </div>
               </div>
             )}
-            
+                        
             {processingStatus === 'completed' && selectedScript === 'entity.py' && (
               <div>
                 <button onClick={() => window.open(csvFilePath, '_blank')}>Download CSV</button>
