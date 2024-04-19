@@ -162,13 +162,6 @@ def generate_timeline(docs, query, selected_model, window_size=500):
             )
             response["page_content"] = processed_content
         output.append(response)
-
-    # Write the output to a file named "output" in the "../data/" directory
-    # with open("../data/output/general_timeline.json", "w") as file:
-    #     json.dump(output, file, indent=2)
-
-    # print("Generated page summaries:", output)
-
     return output
 
 

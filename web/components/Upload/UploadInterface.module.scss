@@ -170,10 +170,40 @@
   }
 }
 
+
+.tippyContent {
+  font-size: 12px;
+  line-height: 1.4;
+  
+  p {
+    margin: 4px 0;
+  }
+}
+
 .tippyTitle {
   font-weight: bold;
   text-align: center;
   margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.tippyTooltip {
+  .tippy-box {
+    background-color: #ce0e0e; /* Change the background color of the tooltip box */
+    color: #333; /* Change the text color inside the tooltip box */
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-family: 'Montserrat', sans-serif; /* Change the font family to match your design */
+    font-size: 14px; /* Adjust the font size of the tooltip box */
+    
+    /* Add any other styles you want to apply to the tooltip box */
+    border: 1px solid #ccc; /* Example: Add a border to the tooltip box */
+  }
+
+  .tippy-arrow {
+    color: #f5f5f5; /* Change the color of the tooltip arrow */
+  }
 }
 
 .outputHeader {
@@ -245,5 +275,51 @@
   option {
     background-color: #fff;
     color: #333;
+  }
+}
+
+.tocSection {
+  white-space: pre-wrap;
+  font-family: monospace;
+  line-height: 1.5;
+  margin-bottom: 3rem;
+  margin-left: 220px;
+  margin-top: 3rem;
+
+  h1, h2, h3 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  ul {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-left: 1.5rem;
+  }
+}
+
+.processOutput {
+  white-space: pre-wrap;
+  line-height: 1.5;
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+
+  .clickableSentence {
+    cursor: pointer;
+    display: inline;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  br {
+    content: "";
+    display: block;
+    margin-top: 1rem;
   }
 }

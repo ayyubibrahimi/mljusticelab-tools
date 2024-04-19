@@ -7,7 +7,8 @@ from msrest.authentication import CognitiveServicesCredentials
 from io import BytesIO
 import time
 import logging
-
+from PIL import Image
+import PIL
 
 
 def getcreds():
@@ -54,9 +55,7 @@ class DocClient:
 
                     img_byte_arr.seek(0)
                     ocr_result = self.client.read_in_stream(img_byte_arr, raw=True)
-                    operation_id = ocr_result.headers["Operation-Location"].split("/")[
-                        -1
-                    ]
+                    operation_id = ocr_result.headers["Operation-Location"].split("/")[-1]
 
                     while True:
                         result = self.client.get_read_result(operation_id)
@@ -73,6 +72,12 @@ class DocClient:
                     with open(json_file, "a") as f:
                         json.dump(page_results, f)
                         f.write("\n")
+
+                except PIL.Image.DecompressionBombError:
+                    logging.warning(
+                        f"Image size exceeds limit for page {i+1} of file {pdf_path}. Returning blank page content."
+                    )
+                    continue
 
                 except azure.core.exceptions.HttpResponseError as e:
                     logging.error(
@@ -148,7 +153,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.INFO)
     azurelogger.setLevel(logging.ERROR)
 
-    doc_directory = "../data/input/folder"
+    doc_directory = "../data/input"
 
     endpoint, key = getcreds()
     client = DocClient(endpoint, key)

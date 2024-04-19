@@ -134,8 +134,8 @@ Chronological Summary:
 
 
 def generate_summaries(docs, query, window_size=500):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
     output = []
@@ -211,15 +211,18 @@ Combined Summary:
 
 
 verification_template = """
-Please carefully review the combined summary of the police report and compare it against the original summaries to identify any areas for improvement, such as missing key details, events, or important information.
+Please carefully review the combined summary of the police report and compare it against the original summaries and the provided memory log to identify any areas for improvement, such as missing key details, events, or important information.
+
+Memory Log:
+{memory_log}
 
 Update the combined summary to ensure it:
-1. Includes all the critical events and details from the original summaries
+1. Includes all the critical events and details from the original summaries and aligns with the information in the memory log
 2. Check for and resolve any inconsistencies, contradictions, or logical errors in the combined summary, ensuring that the information is coherent and logically consistent throughout.
 
 Even if the combined summary already covers the main points, look for opportunities to further align the language with the original text while maintaining clarity and coherence.
 
-Given the context from the combined summary, the first original summary, and the second original summary, generate an updated summary using bullet points.
+Given the context from the combined summary, the first original summary, the second original summary, and the memory log, generate an updated summary using bullet points.
 
 The updated summary should follow a bulletpoint format, for example:
 
@@ -234,15 +237,15 @@ Second Original Summary: {summary2}
 Updated Summary:
 """
 
-def combine_summaries(summaries):
-    combiner_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    # combiner_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+def combine_summaries(summaries, memory_log):
+    # combiner_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    combiner_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     combiner_prompt = ChatPromptTemplate.from_template(combine_template)
     combiner_chain = combiner_prompt | combiner_llm | StrOutputParser()
 
-    verification_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # verification_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
-    # refiner_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    verification_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     verification_prompt = ChatPromptTemplate.from_template(verification_template)
     verification_chain = verification_prompt | verification_llm | StrOutputParser()
 
@@ -256,11 +259,17 @@ def combine_summaries(summaries):
             {"summary1": verified_summary, "summary2": summaries[i]["page_content"]}
         )
 
+        if i % 5 == 0:
+            new_summary = ' '.join(summary['page_content'] for summary in summaries[i-5:i])
+            memory_log = update_memory_log(memory_log, new_summary)
+            print(memory_log)
+
         verified_summary = verification_chain.invoke(
             {
                 "combined_summary": combined_summary,
                 "summary1": verified_summary,
                 "summary2": summaries[i]["page_content"],
+                "memory_log": memory_log,
             }
         )
 
@@ -270,7 +279,8 @@ def combine_summaries(summaries):
 
     # print("Combined summary content:", verified_summary)
 
-    return {"page_content": verified_summary, "page_numbers": combined_page_numbers}
+    return {"page_content": verified_summary, "page_numbers": combined_page_numbers}, memory_log
+
 
 
 def map_sentences_to_pages(combined_summary, docs, num_iterations=3, ensemble_models=None):
@@ -278,7 +288,7 @@ def map_sentences_to_pages(combined_summary, docs, num_iterations=3, ensemble_mo
         ensemble_models = [
             "all-MiniLM-L6-v2",
             "all-MiniLM-L12-v2",
-            "paraphrase-multilingual-MiniLM-L12-v2 ",
+            "paraphrase-multilingual-MiniLM-L12-v2",
         ]
 
     sentences = re.split(r'\n-\s*', combined_summary["page_content"])
@@ -361,13 +371,47 @@ def longest_common_substring(s1, s2):
     start_pos = end_pos - max_length
     return s1[start_pos:end_pos]
 
-def process_summaries(summaries, docs):
-    combined_summary = combine_summaries(summaries)
+
+memory_log_template = """
+As an AI assistant, your task is to update the existing memory log based on the new summary provided. The current memory log is based on the previous iterations, and you are now reviewing the next subset of pages. This memory log is being used to help you understand the structure and key aspects of the entire document, even if you are viewing parts of the document that are not currently in your context window. These police investigative files were collected by an attorney. Please follow these guidelines:
+
+1. Review the current memory log and identify the key facts, events, and details that are still relevant for understanding the overall narrative of the investigative files.
+2. Analyze the new summary and identify any additional critical information, such as:
+   - New developments or findings in the investigation
+   - Important dates, times, and locations related to the events in the investigative files
+   - Statements or interviews from involved parties, witnesses, or other relevant individuals
+   - Physical evidence, documentation, or expert opinions collected during the investigation
+   - Relevant laws, regulations, or police procedures that may be applicable to the case
+3. Ensure that the updated memory log maintains consistency and coherence with the previous information while incorporating the new findings.
+4. If any information in the current memory log is no longer relevant or contradicts the new summary, remove or update it accordingly.
+5. When prioritizing information, consider what details would be essential for understanding the context and key aspects of the investigative files, even if they were initially mentioned in earlier pages. Keep in mind that this memory log serves as a reference to help you comprehend the entire document structure.
+6. Limit the updated memory log to a maximum of 10-12 bullet points, focusing on the most crucial information from the police investigative files.
+7. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for you to grasp the overall structure and content of the document.
+
+Please update the memory log based on the provided current memory log and the new summary:
+
+Current memory log: {memory_log}
+New summary: {summary}
+
+Updated Memory Log:
+"""
+
+def update_memory_log(memory_log, new_summary):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    memory_log_prompt = ChatPromptTemplate.from_template(memory_log_template)
+    memory_log_chain = memory_log_prompt | llm | StrOutputParser()
+
+    updated_memory_log = memory_log_chain.invoke({"summary": new_summary, "memory_log": memory_log})
+
+    return updated_memory_log
+
+
+def process_summaries(summaries, docs, memory_log):
+    combined_summary, updated_memory_log = combine_summaries(summaries, memory_log)
     sentence_to_page = map_sentences_to_pages(combined_summary, docs)
 
-    # print(sentence_to_page)
-    # print("Sentence to page mapping:", sentence_to_page)
-    return combined_summary, sentence_to_page
+    return combined_summary, sentence_to_page, updated_memory_log
 
 
 def write_json_output(sentence_to_page, output_file_path):
@@ -395,32 +439,58 @@ def write_json_output(sentence_to_page, output_file_path):
             else None,
         }
         output_data.append(page_number_dict)
-        print(output_data)
+        # print(output_data)
 
     with open(output_file_path, "w") as file:
         json.dump(output_data, file, indent=4)
 
-
 if __name__ == "__main__":
-    input_directory = "../../ocr/data/output/archive"
+    input_directory = "../../ocr/data/output"
     output_directory = "../data/output"
 
     for filename in os.listdir(input_directory):
         if filename.endswith(".json"):
             json_path = os.path.join(input_directory, filename)
             docs = load_and_split(json_path)
-            # print(docs)
             query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_summaries(docs, query)
 
-            try:
-                combined_summary, sentence_to_page = process_summaries(page_summaries, docs)
-                output_json_path = os.path.join(
-                    output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
+            interval_size = 20
+            num_intervals = (len(docs) + interval_size - 1) // interval_size
+            interval_summaries = []
+
+            memory_log = ""
+
+            for interval in range(num_intervals):
+                start_index = interval * interval_size
+                end_index = min((interval + 1) * interval_size, len(docs))
+                interval_docs = docs[start_index:end_index]
+
+                page_summaries = generate_summaries(interval_docs, query)
+                combined_summary, sentence_to_page, memory_log = process_summaries(page_summaries, interval_docs, memory_log)
+
+                interval_output_json_path = os.path.join(
+                    output_directory, f"{os.path.splitext(filename)[0]}_interval_{interval+1}_summary.json"
                 )
-                write_json_output(sentence_to_page, output_json_path)
-            except Exception as e:
-                if "bus error" in str(e):
-                    print(f"Bus error occurred for {filename}, but ignoring it.")
-                else:
-                    raise e
+                write_json_output(sentence_to_page, interval_output_json_path)
+
+                # Split the combined summary into sentences
+                sentences = combined_summary["page_content"].split("\n- ")
+                for sentence in sentences:
+                    # Skip empty sentences
+                    if sentence.strip():
+                        sentence_info = sentence_to_page.get(sentence.strip(), {})
+                        interval_summaries.append({
+                            "sentence": sentence.strip(),
+                            "page_number": sentence_info.get("page_number", None),
+                            "page_number_score": sentence_info.get("page_number_score", None),
+                            "page_number_candidate_2": sentence_info.get("page_number_candidate_2", None),
+                            "page_number_candidate_2_score": sentence_info.get("page_number_candidate_2_score", None),
+                            "page_number_candidate_3": sentence_info.get("page_number_candidate_3", None),
+                            "page_number_candidate_3_score": sentence_info.get("page_number_candidate_3_score", None)
+                        })
+
+            combined_output_json_path = os.path.join(
+                output_directory, f"{os.path.splitext(filename)[0]}_combined_summary.json"
+            )
+            with open(combined_output_json_path, "w") as file:
+                json.dump(interval_summaries, file, indent=4)

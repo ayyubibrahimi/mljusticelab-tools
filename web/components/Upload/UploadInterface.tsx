@@ -170,55 +170,60 @@ const UploadInterface: React.FC = () => {
             {processingStatus === 'processing' && (
               <div className={styles.statusMessage}>The PDF is being processed...</div>
             )}
-  
+            
             {processingStatus === 'completed' && selectedScript === 'process.py' && (
-              <div ref={outputRef}>
-                {sentencePagePairs.map((pair, index) => (
-                  <Tippy
-                    key={index}
-                    content={
-                      <>
-                        <div className={styles.tippyTitle}>Associated Pages</div>
-                        <div className={styles.tippyContent}>
-                          <p>Page {pair.page_number} (Probability Score: {pair.page_number_score})</p>
-                          {pair.page_number_candidate_2 && (
-                            <p>Page {pair.page_number_candidate_2} (Probability Score: {pair.page_number_candidate_2_score})</p>
-                          )}
-                          {pair.page_number_candidate_3 && (
-                            <p>Page {pair.page_number_candidate_3} (Probability Score: {pair.page_number_candidate_3_score})</p>
-                          )}
-                        </div>
-                      </>
-                    }
-                    followCursor={true}
-                    plugins={[followCursor]}
-                  >
-                    <p
-                      onClick={() => setSelectedPage(pair.page_number)}
-                      className={styles.clickableSentence}
-                    >
-                      {pair.sentence}
-                    </p>
-                  </Tippy>
-                ))}
-              </div>
-            )}
+                <div ref={outputRef} className={styles.processOutput}>
+                  {sentencePagePairs.map((pair, index) => (
+                    <React.Fragment key={index}>
+                      <Tippy
+                        content={
+                          <div className={styles.tippyContent}>
+                            <div className={styles.tippyTitle}>Associated Pages</div>
+                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                            {pair.page_number_candidate_2 && (
+                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                            )}
+                            {pair.page_number_candidate_3 && (
+                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                            )}
+                          </div>
+                        }
+                        theme="custom"
+                        followCursor={true}
+                        plugins={[followCursor]}
+                        className={styles.tippyTooltip}
+                      >
+                        <span
+                          onClick={() => setSelectedPage(pair.page_number)}
+                          className={styles.clickableSentence}
+                        >
+                          {pair.sentence}
+                        </span>
+                      </Tippy>
+                      {(index + 1) % 4 === 0 && <br />}
+                      {(index + 1) % 4 === 0 && <br />}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
           
           
           {processingStatus === 'completed' && selectedScript === 'toc.py' && (
               <div ref={outputRef}>
                 <div className={styles.tocSection}>
-                  {tocData.map((pageData, pageIndex) => (
-                    <div key={pageIndex}>
-                      {pageData.sentence.map((sentenceData, sentenceIndex) => (
-                        <p key={`${pageIndex}-${sentenceIndex}`}>{sentenceData.text}</p>
-                      ))}
-                    </div>
-                  ))}
+                  <pre>
+                    {tocData.map((pageData, pageIndex) => (
+                      pageData.sentence.map((sentenceData, sentenceIndex) => {
+                        const text = sentenceData.text;
+                        const modifiedText = text.replace(/^(\d+\.)$/gm, '\n$1');
+                        return modifiedText.replace(/^\s+/gm, '');
+                      }).join('\n')
+                    )).join('\n')}
+                  </pre>
                 </div>
               </div>
             )}
-                        
+                                                
             {processingStatus === 'completed' && selectedScript === 'entity.py' && (
               <div>
                 <button onClick={() => window.open(csvFilePath, '_blank')}>Download CSV</button>
