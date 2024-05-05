@@ -16,7 +16,7 @@
     margin-bottom: 10px;
     font-size: 24px;
     text-align: center;
-    font-family: 'Montserrat',;
+    font-family: 'Montserrat';
     color: #888;
   }
 
@@ -32,16 +32,19 @@
         display: block;
         width: 100%;
         padding: 10px;
-        background-color: rgba(224, 224, 224, 0.8);
-        border: none;
-        border-radius: 4px;
+        background-color: transparent;
+        border: 2px solid #888;
+        border-radius: 20px;
         cursor: pointer;
         font-size: 14px;
-        text-align: left;
-        transition: background-color 0.3s ease;
+        text-align: center;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        font-family: 'Montserrat';
+        color: #888;
 
         &:hover {
-          background-color: rgba(208, 208, 208, 0.8);
+          background-color: #F0F0F0;
+          color: #555;
         }
       }
     }

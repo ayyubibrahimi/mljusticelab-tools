@@ -38,7 +38,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled, multipl
           multiple={multiple}
         />
         <label htmlFor="fileInput" className={styles.fileInputLabel}>
-          Choose files
+          Upload files
         </label>
         <button type="submit" disabled={disabled} className={styles.processButton}>
           {disabled ? 'Processing...' : 'Process'}

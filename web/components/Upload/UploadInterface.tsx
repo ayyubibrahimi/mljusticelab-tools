@@ -6,6 +6,7 @@ import PopupBox from './PopupBox';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import { followCursor } from 'tippy.js';
+import classNames from 'classnames';
 
 const UploadInterface: React.FC = () => {
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
@@ -33,6 +34,12 @@ const UploadInterface: React.FC = () => {
   const [csvFilePath, setCsvFilePath] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py'>('process.py');
+  const [selectedAnalysis, setSelectedAnalysis] = useState<'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py' | null>(null);
+
+  const handleAnalysisClick = (analysis: 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py') => {
+    setSelectedAnalysis(analysis);
+    setSelectedScript(analysis);
+  };
 
   interface BulkSummaryItem {
     filename: string;
@@ -165,13 +172,38 @@ const UploadInterface: React.FC = () => {
             </div>
             <span>Innocence Lab</span>
           </div>
-  
+
           <div className={styles.outputContent}>
-            {processingStatus === 'processing' && (
-              <div className={styles.statusMessage}>The PDF is being processed...</div>
+            {processingStatus !== 'completed' && (
+              <div className={styles.analysisButtonsContainer}>
+                <button
+                  className={classNames(styles.analysisButton, selectedAnalysis === 'process.py' && styles.selected)}
+                  onClick={() => handleAnalysisClick('process.py')}
+                >
+                  Generate Summary
+                </button>
+                <button
+                  className={classNames(styles.analysisButton, selectedAnalysis === 'toc.py' && styles.selected)}
+                  onClick={() => handleAnalysisClick('toc.py')}
+                >
+                  Generate Timeline
+                </button>
+                <button
+                  className={classNames(styles.analysisButton, selectedAnalysis === 'entity.py' && styles.selected)}
+                  onClick={() => handleAnalysisClick('entity.py')}
+                >
+                  Extract Entities
+                </button>
+                <button
+                  className={classNames(styles.analysisButton, selectedAnalysis === 'bulk_summary.py' && styles.selected)}
+                  onClick={() => handleAnalysisClick('bulk_summary.py')}
+                >
+                  Bulk Summary
+                </button>
+              </div>
             )}
-            
-            {processingStatus === 'completed' && selectedScript === 'process.py' && (
+          </div>
+          {processingStatus === 'completed' && selectedScript === 'process.py' && (
                 <div ref={outputRef} className={styles.processOutput}>
                   {sentencePagePairs.map((pair, index) => (
                     <React.Fragment key={index}>
@@ -246,7 +278,6 @@ const UploadInterface: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
           <div className={styles.uploadSection}>
             <FileUpload onFileUpload={handleFileUpload} disabled={processingStatus === 'processing'} multiple />
           </div>
