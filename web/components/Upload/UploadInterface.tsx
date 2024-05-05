@@ -6,7 +6,9 @@ import PopupBox from './PopupBox';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import { followCursor } from 'tippy.js';
-import classNames from 'classnames';
+import ScriptDropdown from './ScriptDropdown';
+import ModelDropdown from './ModelDropdown';
+import AnalysisButtons from './AnalysisButtons';
 
 const UploadInterface: React.FC = () => {
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
@@ -56,7 +58,7 @@ const UploadInterface: React.FC = () => {
     setPdfPages([]);
     setTocData([]);
     setCsvFilePath(null);
-    setBulkSummary(null);
+    setBulkSummary([]);
 
     const formData = new FormData();
     files.forEach((file) => {
@@ -143,64 +145,24 @@ const UploadInterface: React.FC = () => {
         <div className={styles.outputContainer}>
           <div className={styles.outputHeader}>
             <div className={styles.dropdownContainer}>
-              <div className={styles.scriptDropdown}>
-                <select
-                  value={selectedScript}
-                  onChange={(e) => setSelectedScript(e.target.value as 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py')}
-                  className={styles.scriptSelect}
-                >
-                  <option value="process.py">Generate Summary</option>
-                  <option value="toc.py">Generate Timeline</option>
-                  <option value="entity.py">Extract Entities</option>
-                  <option value="bulk_summary.py">Bulk Summary</option>
-                </select>
-              </div>
-              <div className={styles.modelDropdown}>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className={styles.modelSelect}
-                >
-                  <option value="">Select Model</option>
-                  <option value="gpt-4-0125-preview">GPT-4</option>
-                  <option value="gpt-3.5-0125">GPT-3.5</option>
-                  <option value="claude-3-haiku-20240307">Claude (Haiku)</option>
-                  <option value="claude-3-sonnet-20240229">Claude (Sonnet)</option>
-                  <option value="claude-3-opus-20240229">Claude (Opus)</option>
-                </select>
-              </div>
+              <ScriptDropdown
+                selectedScript={selectedScript}
+                onScriptChange={setSelectedScript}
+              />
+              <ModelDropdown
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
+              />
             </div>
             <span>Innocence Lab</span>
           </div>
 
           <div className={styles.outputContent}>
             {processingStatus !== 'completed' && (
-              <div className={styles.analysisButtonsContainer}>
-                <button
-                  className={classNames(styles.analysisButton, selectedAnalysis === 'process.py' && styles.selected)}
-                  onClick={() => handleAnalysisClick('process.py')}
-                >
-                  Generate Summary
-                </button>
-                <button
-                  className={classNames(styles.analysisButton, selectedAnalysis === 'toc.py' && styles.selected)}
-                  onClick={() => handleAnalysisClick('toc.py')}
-                >
-                  Generate Timeline
-                </button>
-                <button
-                  className={classNames(styles.analysisButton, selectedAnalysis === 'entity.py' && styles.selected)}
-                  onClick={() => handleAnalysisClick('entity.py')}
-                >
-                  Extract Entities
-                </button>
-                <button
-                  className={classNames(styles.analysisButton, selectedAnalysis === 'bulk_summary.py' && styles.selected)}
-                  onClick={() => handleAnalysisClick('bulk_summary.py')}
-                >
-                  Bulk Summary
-                </button>
-              </div>
+              <AnalysisButtons
+                selectedAnalysis={selectedAnalysis}
+                onAnalysisClick={handleAnalysisClick}
+              />
             )}
           </div>
           {processingStatus === 'completed' && selectedScript === 'process.py' && (
