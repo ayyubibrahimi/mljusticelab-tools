@@ -10,12 +10,10 @@ import logging
 from PIL import Image
 import PIL
 
-
 def getcreds():
     with open("../creds/creds_cv.txt", "r") as c:
         creds = c.readlines()
     return creds[0].strip(), creds[1].strip()
-
 
 class DocClient:
     def __init__(self, endpoint, key):
@@ -38,11 +36,12 @@ class DocClient:
 
         return contents
 
-    def pdf2df(self, pdf_path, json_file):
+    def pdf2df(self, pdf_path):
         with open(pdf_path, "rb") as file:
             pdf_data = file.read()
 
             num_pages = pdf2image.pdfinfo_from_bytes(pdf_data)["Pages"]
+            page_results = []
 
             for i in range(num_pages):
                 try:
@@ -67,11 +66,11 @@ class DocClient:
                         logging.error(f"OCR failed for page {i+1} of file {pdf_path}")
                         continue
 
-                    page_results = self.extract_content(result)
-
-                    with open(json_file, "a") as f:
-                        json.dump(page_results, f)
-                        f.write("\n")
+                    page_content = self.extract_content(result)
+                    page_results.append({
+                        "page_content": page_content[f"page_1"],
+                        "page_number": i + 1
+                    })
 
                 except PIL.Image.DecompressionBombError:
                     logging.warning(
@@ -85,6 +84,8 @@ class DocClient:
                     )
                     continue
 
+            return page_results
+
     def process(self, pdf_path, output_dir):
         outname = os.path.basename(pdf_path).replace(".pdf", "")
         outstring = os.path.join(output_dir, "{}.json".format(outname))
@@ -96,47 +97,39 @@ class DocClient:
 
         logging.info(f"sending document {outname}")
 
+        page_results = self.pdf2df(pdf_path)
+
         with open(outpath, "w") as f:
-            f.write('{ "messages": {\n')
-
-        self.pdf2df(pdf_path, outpath)
-
-        with open(outpath, "a") as f:
-            f.write("\n}}")
+            json.dump({"messages": page_results}, f, indent=4)
 
         logging.info(f"finished writing to {outpath}")
         return outpath
 
-
 def update_page_keys_in_json(json_file):
-    corrected_messages = {}
-
     with open(json_file, "r") as f:
-        lines = f.readlines()
-        for i, line in enumerate(lines, start=0):
-            if i == 0:
-                continue
-            try:
-                content = json.loads(line.strip())
-                corrected_key = f"page_{i}"
-                corrected_messages[corrected_key] = content[f"page_1"]
-            except json.JSONDecodeError:
-                continue
+        data = json.load(f)
+
+    corrected_messages = []
+    for page in data["messages"]:
+        page_number = page["page_number"]
+        corrected_key = f"page_{page_number}"
+        corrected_messages.append({
+            "page_content": page["page_content"],
+            "page_number": page_number
+        })
 
     with open(json_file, "w") as f:
         json.dump({"messages": corrected_messages}, f, indent=4)
 
-
 def reformat_json_structure(json_file):
     with open(json_file, "r") as f:
         data = json.load(f)
-    
+
     new_messages = []
-    for key, content in data["messages"].items():
-        page_num = int(key.split('_')[1])  
+    for page in data["messages"]:
         new_messages.append({
-            "page_content": content,
-            "page_number": page_num
+            "page_content": page["page_content"],
+            "page_number": page["page_number"]
         })
 
     new_data = {"messages": new_messages}
@@ -144,15 +137,14 @@ def reformat_json_structure(json_file):
     with open(json_file, "w") as f:
         json.dump(new_data, f, indent=4)
 
-
 if __name__ == "__main__":
     logger = logging.getLogger()
     azurelogger = logging.getLogger("azure")
     logger.setLevel(logging.INFO)
     azurelogger.setLevel(logging.ERROR)
 
-    input_directory = "../data/comprehensive"
-    output_directory = "../data/comprehensive"
+    input_directory = "data/input/pdfs"
+    output_directory = "../data/output/ocr"
     endpoint, key = getcreds()
     client = DocClient(endpoint, key)
 
@@ -160,14 +152,15 @@ if __name__ == "__main__":
         pdf_files = [f for f in files if f.lower().endswith('.pdf')]
         if pdf_files:
             logging.info(f"Processing {len(pdf_files)} files in directory: {root}")
-            
-            # Create corresponding output directory if it doesn't exist
-            relative_path = os.path.relpath(root, input_directory)
-            output_subdir = os.path.join(output_directory, relative_path)
-            os.makedirs(output_subdir, exist_ok=True)
-            
+
             for file in pdf_files:
                 file_path = os.path.join(root, file)
+
+                # Create corresponding output directory if it doesn't exist
+                relative_path = os.path.relpath(root, input_directory)
+                output_subdir = os.path.join(output_directory, relative_path)
+                os.makedirs(output_subdir, exist_ok=True)
+
                 json_file_path = client.process(file_path, output_subdir)
                 update_page_keys_in_json(json_file_path)
                 reformat_json_structure(json_file_path)

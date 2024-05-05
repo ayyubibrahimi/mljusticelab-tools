@@ -1,6 +1,5 @@
 import os
 import logging
-from dotenv import find_dotenv, load_dotenv
 import json
 import spacy
 from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline, AutoModel
@@ -15,11 +14,10 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from langchain_anthropic import ChatAnthropic
+import multiprocessing
 
 
 # nltk.download('stopwords')
-
-load_dotenv(find_dotenv())
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -133,52 +131,56 @@ Chronological Summary:
 """
 
 
-def generate_summaries(docs, query, window_size=500):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+def process_page(docs, i, query, window_size):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
-    output = []
 
-    for i in range(len(docs)):
-        current_page = docs[i].page_content.replace("\n", " ")
-        previous_page_ending = (
-            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
+    current_page = docs[i].page_content.replace("\n", " ")
+    previous_page_ending = (
+        docs[i - 1].page_content.replace("\n", " ")[-window_size:]
+        if i > 0
+        else ""
+    )
+    next_page_beginning = (
+        docs[i + 1].page_content.replace("\n", " ")[:window_size]
+        if i < len(docs) - 1
+        else ""
+    )
+    page_number = docs[i].metadata.get("seq_num")
+    response = {"page_content": "", "page_number": page_number}
+    if current_page:
+        processed_content = response_chain.invoke(
+            {
+                "question": query,
+                "previous_page_ending": previous_page_ending,
+                "current_page": current_page,
+                "next_page_beginning": next_page_beginning,
+            }
         )
-        next_page_beginning = (
-            docs[i + 1].page_content.replace("\n", " ")[:window_size]
-            if i < len(docs) - 1
-            else ""
-        )
-        page_number = docs[i].metadata.get("seq_num")
+        response["page_content"] = processed_content
+    return response
 
-        response = {"page_content": "", "page_number": page_number}
-        if current_page:
-            processed_content = response_chain.invoke(
-                {
-                    "question": query,
-                    "previous_page_ending": previous_page_ending,
-                    "current_page": current_page,
-                    "next_page_beginning": next_page_beginning,
-                }
-            )
-            response["page_content"] = processed_content
-            # print(response)
-        output.append(response)
+def generate_summaries(docs, query, window_size=500):
+    pool = multiprocessing.Pool()
+    results = pool.starmap(
+        process_page,
+        [(docs, i, query, window_size) for i in range(len(docs))],
+    )
+    pool.close()
+    pool.join()
 
-
-    return output
-
+    return results
 
 combine_template = """
 As an AI assistant, your task is to combine the provided summaries of a police report into a single, comprehensive, and chronological summary. Please follow these guidelines:
 
 1. Carefully review the summaries to identify and include all relevant information, such as:
-   - Key events and actions taken by individuals involved
-   - Dates and times of significant occurrences
-   - Locations where events took place
-   - Important details about the crime, investigation, and evidence
-   - Relevant background information about the individuals involved
+    - Names and roles of the main police officers involved in the case
+    - The specific allegations of misconduct against the officers
+    - Key events and actions taken during the investigation of the allegations
+    - Important details about the evidence, witness statements, and findings related to the allegations
+    - The outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
 
 2. Organize the information in a clear and logical timeline, ensuring that the sequence of events is accurately represented.
 
@@ -206,41 +208,53 @@ Combined Summary:
 
 
 verification_template = """
-Please carefully review the combined summary of the police report and compare it against the original summaries and the provided memory log to identify any areas for improvement, such as missing key details, events, or important information.
+Please carefully review the combined summary, which is a merged version of two individual summaries (summary1 and summary2) of a police investigative report. The combined summary should include all relevant information from both summary1 and summary2, organized in a clear and coherent manner, with a focus on the following key aspects:
+
+    1. Names and roles of the main police officers involved in the case
+    2. The specific allegations of misconduct against the officers
+    3. Key events and actions taken during the investigation of the allegations
+    4. Important details about the evidence, witness statements, and findings related to the allegations
+    5. The outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
+
+Compare the combined summary against summary1, summary2, and the provided memory log to identify any areas for improvement, such as missing key details, events, or important information related to these five key aspects.
 
 Memory Log:
+The memory log contains a running list of important facts that should be considered throughout the entire document, regardless of the specific page being analyzed. Keep these facts in mind when reviewing and updating the combined summary.
 {memory_log}
 
 Update the combined summary to ensure it:
-1. Includes all the critical events and details from the original summaries and aligns with the information in the memory log
-2. Check for and resolve any inconsistencies, contradictions, or logical errors in the combined summary, ensuring that the information is coherent and logically consistent throughout.
 
-Even if the combined summary already covers the main points, look for opportunities to further align the language with the original text while maintaining clarity and coherence.
+1. Includes all the critical information from summary1 and summary2 related to the names and roles of the main police officers involved in the case.
+2. Clearly states the specific allegations of misconduct against the officers.
+3. Captures the key events and actions taken during the investigation of the allegations.
+4. Incorporates important details about the evidence, witness statements, and findings related to the allegations.
+5. Provides the outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes.
+6. Aligns with the information in the memory log and resolves any inconsistencies, contradictions, or logical errors, ensuring that the information is coherent and logically consistent throughout.
 
-Given the context from the combined summary, the first original summary, the second original summary, and the memory log, generate an updated summary using bullet points.
+Given the context from the combined summary, summary1, summary2, and the memory log, generate an updated summary using bullet points.
 
-The updated summary should follow a bulletpoint format, for example:
+The updated summary should follow a bullet point format, for example:
 
 - Point 1
 - Point 2
 - Point 3
 
-Combined Summary: {combined_summary}
-First Original Summary: {summary1}
-Second Original Summary: {summary2}
+## Combined Summary (merged version of summary1 and summary2) ##: {combined_summary}
+## Summary1 (first individual summary) ##: {summary1}
+## Summary2 (second individual summary) ##: {summary2}
 
 Updated Summary:
 """
 
 def combine_summaries(summaries, memory_log):
     # combiner_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    combiner_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    combiner_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     combiner_prompt = ChatPromptTemplate.from_template(combine_template)
     combiner_chain = combiner_prompt | combiner_llm | StrOutputParser()
 
     # verification_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
-    verification_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    verification_llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     verification_prompt = ChatPromptTemplate.from_template(verification_template)
     verification_chain = verification_prompt | verification_llm | StrOutputParser()
 
@@ -367,90 +381,63 @@ def longest_common_substring(s1, s2):
     return s1[start_pos:end_pos]
 
 
-# memory_log_template = """
-# As an AI assistant acting from the perspective of an attorney, your task is to update the existing memory log based on the new summary provided. This memory log serves as the primary memory structure for maintaining a long-term understanding of the police investigative files, ensuring that you have the necessary context to comprehend the content of any given page, even if it is far removed from the introductory text.
-
-# Your goal is to keep the memory log concise while capturing the most critical information for understanding the overall narrative and key developments throughout the entire document. This long-term memory is integral to your ability to generate accurate summaries and draw meaningful connections between distant parts of the document.
-
-# It is crucial to understand that the current memory log is based on summaries of previous pages, and as you process new summaries, you will continually update this memory log. The updated memory log will be available to you as you evaluate subsequent pages, allowing you to maintain a coherent and comprehensive understanding of the document's content.
-
-# Please follow these guidelines:
-# 1. Review the current memory log and identify the key facts, events, and details that are essential for comprehending the context and structure of the investigative files.
-
-# 2. Analyze the new summary and identify any additional crucial information, such as:
-#    - Significant developments or findings in the investigation
-#    - Critical dates, times, and locations related to the events
-#    - Key statements or interviews from involved parties, witnesses, or other relevant individuals
-#    - Vital physical evidence, documentation, or expert opinions
-#    - Relevant laws, regulations, or police procedures applicable to the case
-
-# 3. Ensure that the updated memory log maintains consistency and coherence with the previous information while incorporating the new essential findings.
-
-# 4. If any information in the current memory log is no longer relevant, contradicts the new summary, or is of minor importance, remove or update it accordingly.
-
-# 5. Prioritize information based on its significance in understanding the context and key aspects of the investigative files, even if initially mentioned in earlier summaries.
-
-# 6. Limit the updated memory log to a maximum of 8-10 bullet points, focusing on the most vital information required to comprehend the content at any point in the police investigative files.
-
-# 7. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for grasping the overall structure and content of the document.
-
-# 8. If the new summary does not contain any information that significantly adds to the overall understanding of the investigative files or does not warrant changes to the existing memory log, it is essential to return the current memory log without modifications.
-
-# 9. Evaluate the updated memory log against the current memory log. If the current memory log is more effective at capturing the essential information and context required for long-term understanding, do not update it and instead return the current memory log.
-
-# Please update the memory log based on the provided current memory log and the new summary. If no significant changes are needed or the current memory log is more effective, it is crucial to return the current memory log as is.
-
-# Current memory log: {memory_log}
-# New summary: {summary}
-
-# Updated Memory Log or Current Memory Log:
-# """
-
-## v2
 memory_log_template = """
-As an AI assistant acting from the perspective of an attorney, your task is to update the existing memory log only when the new summary contains information that is crucial to enhancing the overall understanding of the police investigative files. Keep in mind that there is an ideal version of the memory log that effectively captures the essential aspects of the case. Your goal is to maintain this ideal memory log and make changes only when strictly necessary.
+As an AI assistant acting from the perspective of an attorney, update the memory log only when the new summary contains crucial information for understanding the police investigative files. Maintain an ideal memory log that captures the case's essential aspects.
 
-This memory log serves as the primary memory structure for maintaining a high-level understanding of the entire document, ensuring that you have the necessary context to comprehend the content of any given section, regardless of the specific details in the new summary input. It is integral to your ability to generate accurate summaries and draw meaningful connections between distant parts of the document.
+Guidelines:
 
-As you process new summaries, which are produced at 15-page intervals, be very cautious about making changes to the memory log. Only update it if the new information is highly relevant, directly addresses a significant gap in understanding, or corrects a critical inaccuracy. Remember, the goal is to maintain a consistent, high-level understanding of the document, rather than focusing on granular details from each new summary. The updated memory log will be available to you as you evaluate subsequent sections, allowing you to maintain a coherent understanding of the document's content.
+1. Review the current memory log and new summary to determine if an update is necessary.
+2. If the new summary contains crucial information not adequately captured, identify key details to include.
+3. Focus on maintaining a high-level understanding of the document's key aspects:
+   - Names and roles of main police officers
+   - Specific allegations of misconduct
+   - Key events and actions during the investigation
+   - Important evidence, witness statements, and findings
+   - Investigation outcome, including disciplinary actions, legal proceedings, or policy changes
 
-Please follow these guidelines:
-1. Carefully review the current memory log and the new summary to determine if the new information is essential to the overall understanding of the police investigative files and warrants updating the memory log.
+Ensure that the following key details are always retained in the memory log:
+- Names of the main police officers involved in the case
+- Specific allegations of misconduct against the officers
+- Key dates, such as the start date of the investigation or the date of the alleged incident
+- Significant evidence, witness statements, or findings that directly support or refute the allegations
+- The final outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
 
-2. If the new summary contains crucial information that is not adequately captured in the current memory log and is necessary for maintaining an accurate high-level understanding of the case, identify the key details to include, such as:
-   - Significant developments or findings in the investigation
-   - Critical dates, times, and locations related to the events
-   - Key statements or interviews from involved parties, witnesses, or other relevant individuals
-   - Vital physical evidence, documentation, or expert opinions
-   - Relevant laws, regulations, or police procedures applicable to the case
+These crucial details should be preserved in the memory log. They can be edited if additional information from the new summary will make the point clearer or more accurate.
 
-3. Ensure that any updates to the memory log maintain consistency and coherence with the previous information while incorporating only the most essential new findings. Strive to maintain the chronological order of events when updating the memory log to preserve a clear and easily understandable narrative.
+4. Use clear, concise, and objective language. Maintain a neutral, unbiased perspective.
 
-4. If any information in the current memory log is contradicted by the new summary or found to be inaccurate, update it accordingly. However, be very cautious about removing information that may still be relevant to the overall context or that could become significant as the case progresses.
+You must always output the contents of the memory log. Output your response in bullet point format. For example:
 
-5. Prioritize information based on its significance in understanding the key aspects of the investigative files. Look for connections or patterns across different parts of the document that might reveal important themes or recurring elements.
+- Names and roles of main police officers:
+  - Officer 1
+  - Officer 2
 
-6. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for grasping the overall structure and content of the document. Maintain a neutral, unbiased perspective and avoid making assumptions or drawing conclusions beyond what is explicitly stated in the summaries.
+- Specific allegations of misconduct:
+  - Excessive use of force during arrest
+  - Falsifying police report
 
-7. If the new summary does not contain any information that significantly enhances the high-level understanding of the investigative files, directly addresses critical gaps in the current memory log, or contradicts existing information, it is crucial to return the current memory log without modifications.
+- Key dates:
+  - Incident date: January 1, 2023
+  - Investigation start date: January 5, 2023
 
-8. When encountering inconsistencies or contradictions between the new summary and the existing memory log, carefully evaluate the reliability and credibility of the sources before making any changes. If the discrepancy cannot be resolved with confidence, prioritize maintaining the coherence and stability of the existing memory log.
+- Significant evidence and findings:
+  - Body camera footage shows excessive force
+  - Witness statements corroborate allegations
 
-9. You can return the memory log without, if the new summary does not contain any important information. 
+- Investigation outcome:
+  - Officer 1 suspended without pay
+  - Internal Affairs investigation ongoing
 
-10. Always return the current memory log or an updated memory log. 
-
-##  Current memory log ##: {memory_log}
+## Current memory log ##: {memory_log}
 
 ## New summary ##: {summary}
 
-Return Memory Log:
+## Updated Memory Log ##:
 """
 
-
 def update_memory_log(memory_log, new_summary):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     memory_log_prompt = ChatPromptTemplate.from_template(memory_log_template)
     memory_log_chain = memory_log_prompt | llm | StrOutputParser()
 
@@ -459,12 +446,11 @@ def update_memory_log(memory_log, new_summary):
     return updated_memory_log
 
 
-def process_summaries(summaries, docs):
-    memory_log = ""
-    combined_summary, memory_log = combine_summaries(summaries, memory_log)
+def process_summaries(summaries, docs, memory_log):
+    combined_summary, updated_memory_log = combine_summaries(summaries, memory_log)
     sentence_to_page = map_sentences_to_pages(combined_summary, docs)
 
-    return combined_summary, sentence_to_page
+    return combined_summary, sentence_to_page, updated_memory_log
 
 
 def write_json_output(sentence_to_page, output_file_path):
@@ -497,7 +483,6 @@ def write_json_output(sentence_to_page, output_file_path):
     with open(output_file_path, "w") as file:
         json.dump(output_data, file, indent=4)
 
-
 if __name__ == "__main__":
     input_directory = "../../ocr/data/output"
     output_directory = "../data/output"
@@ -506,12 +491,45 @@ if __name__ == "__main__":
         if filename.endswith(".json"):
             json_path = os.path.join(input_directory, filename)
             docs = load_and_split(json_path)
-            # print(docs)
             query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_summaries(docs, query)
 
-            combined_summary, sentence_to_page = process_summaries(page_summaries, docs)
-            output_json_path = os.path.join(
-                    output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
+            interval_size = 20
+            num_intervals = (len(docs) + interval_size - 1) // interval_size
+            interval_summaries = []
+
+            memory_log = ""
+
+            for interval in range(num_intervals):
+                start_index = interval * interval_size
+                end_index = min((interval + 1) * interval_size, len(docs))
+                interval_docs = docs[start_index:end_index]
+
+                page_summaries = generate_summaries(interval_docs, query)
+                combined_summary, sentence_to_page, memory_log = process_summaries(page_summaries, interval_docs, memory_log)
+
+                interval_output_json_path = os.path.join(
+                    output_directory, f"{os.path.splitext(filename)[0]}_interval_{interval+1}_summary.json"
                 )
-            write_json_output(sentence_to_page, output_json_path)
+                write_json_output(sentence_to_page, interval_output_json_path)
+
+                # Split the combined summary into sentences
+                sentences = combined_summary["page_content"].split("\n- ")
+                for sentence in sentences:
+                    # Skip empty sentences
+                    if sentence.strip():
+                        sentence_info = sentence_to_page.get(sentence.strip(), {})
+                        interval_summaries.append({
+                            "sentence": sentence.strip(),
+                            "page_number": sentence_info.get("page_number", None),
+                            "page_number_score": sentence_info.get("page_number_score", None),
+                            "page_number_candidate_2": sentence_info.get("page_number_candidate_2", None),
+                            "page_number_candidate_2_score": sentence_info.get("page_number_candidate_2_score", None),
+                            "page_number_candidate_3": sentence_info.get("page_number_candidate_3", None),
+                            "page_number_candidate_3_score": sentence_info.get("page_number_candidate_3_score", None)
+                        })
+
+            combined_output_json_path = os.path.join(
+                output_directory, f"{os.path.splitext(filename)[0]}_combined_summary.json"
+            )
+            with open(combined_output_json_path, "w") as file:
+                json.dump(interval_summaries, file, indent=4)

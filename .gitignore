@@ -10,3 +10,4 @@ map/
 *.json
 node_modules/
 myenv/
+*.png

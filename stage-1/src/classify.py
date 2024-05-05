@@ -23,7 +23,7 @@ MAX_IMAGE_PIXELS = 89000000  # 89 million pixels
 
 def process_pdf(pdf_path):
     """Process a PDF file page by page and determine the type of each page"""
-    output_data = {}
+    output_data = {"messages": []}
     page_types = []  # Store the page types
 
     with open(pdf_path, "rb") as file:
@@ -47,10 +47,10 @@ def process_pdf(pdf_path):
                     else:
                         page_type = determine_page_type(base64_image)
 
-                output_data[f"page_{page_number+1}"] = {
+                output_data["messages"].append({
                     "page_number": page_number + 1,
                     "type": page_type,
-                }
+                })
                 page_types.append(page_type)  # Add the page type to the list
                 logging.info(
                     f"Processed page {page_number+1} of {pdf_path} - Type: {page_type}"
@@ -60,11 +60,11 @@ def process_pdf(pdf_path):
                     f"Skipped page {page_number+1} of {pdf_path} due to error: {str(e)}"
                 )
 
-    # Check the percentage of "email" or "other" pages
-    email_or_other_count = page_types.count("email") + page_types.count("other")
-    total_pages = len(page_types)
-    if total_pages > 0 and email_or_other_count / total_pages > 0.5:
-        return None  # Don't output the JSON object
+    # # Check the percentage of "email" or "other" pages
+    # email_or_other_count = page_types.count("email") + page_types.count("other")
+    # total_pages = len(page_types)
+    # if total_pages > 0 and email_or_other_count / total_pages > 0.5:
+    #     return None  # Don't output the JSON object
 
     return output_data
 
@@ -79,18 +79,35 @@ def determine_page_type(base64_image):
     """Determine the type of a page using Claude Haiku"""
     chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=1024)
     prompt = """
-Please analyze the given image and determine the type of page it represents. The possible types are:
+    Please analyze the given image and determine the type of page it represents. The possible types are:
 
-1. "narrative_text": Continuous text, such as a report, article, or book page.
-2. "court_transcript": Transcripts from legal proceedings or court cases.
-3. "form": Structured documents with fields, checkboxes, or tables for data entry.
-4. "email": Electronic mail messages or email printouts.
-5. "picture": picture
-6. "blank page": blank page
-7. "other": Any other type of document not covered by the above categories.
+    1. "narrative": Continuous text, such as a report, article, or book page. Characteristics:
+    - Paragraphs of text
+    - Minimal formatting or structure
+    - May include headings, subheadings, or page numbers
+    - Structured format with speaker labels (e.g., "Q:", "A:")
+    - Numbered lines or timestamps
+    - Legal jargon or court-related terminology
+    3. "form": Structured documents with fields, checkboxes, or tables for data entry. Characteristics:
+    - Presence of input fields, checkboxes, or dropdown menus
+    - Labels or instructions for each field
+    - Distinctive layout with sections and borders
+    4. "email": Electronic mail messages or email printouts. Characteristics:
+    - Presence of email headers (e.g., "From:", "To:", "Subject:")
+    - Indented or quoted text for replies or forwarded messages
+    - Email signatures or disclaimers at the bottom
+    5. "picture": Pages primarily containing images or graphics. Characteristics:
+    - Large visual elements taking up significant space on the page
+    - Minimal or no text content
+    - Photographs, illustrations, charts, or diagrams
+    6. "blank page": Pages with no content or very minimal content. Characteristics:
+    - Mostly white space or empty
+    - May have headers, footers, or watermarks
+    - No significant text or visual elements
+    7. "other": Any other type of document not covered by the above categories.
 
-Please provide the page type as a single word in lowercase without any additional explanation. If the image is unclear or does not fit into any of the specified categories, respond with "unknown".
-"""
+    Please provide the page type as a single word in lowercase without any additional explanation.
+    """
     
     try:
         msg = chat.invoke(
@@ -107,7 +124,7 @@ Please provide the page type as a single word in lowercase without any additiona
             ]
         )
         page_type = msg.content.strip().lower()
-        if page_type not in ["narrative_text", "court_transcript", "form", "correspondence", "email", "other", "unknown"]:
+        if page_type not in ["narrative", "form", "correspondence", "email", "picture", "blank page", "other", "unknown"]:
             return "unknown"
         return page_type
     except Exception as e:
@@ -115,24 +132,26 @@ Please provide the page type as a single word in lowercase without any additiona
         return "unknown"
     
 def process_directory(directory):
-    """Process all PDF files in a directory"""
-    for filename in os.listdir(directory):
-        if filename.endswith(".pdf"):
-            pdf_path = os.path.join(directory, filename)
+    output_base = "../data/output/classify"
+    for root, dirs, files in os.walk(directory):
+        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+        for pdf_file in pdf_files:
+            pdf_path = os.path.join(root, pdf_file)
             logging.info(f"Processing {pdf_path}")
             output_data = process_pdf(pdf_path)
-            
+
             if output_data is None:
-                logging.info(f"Skipped {filename} due to high percentage of 'email' or 'other' pages")
-                continue  # Skip outputting the JSON object
-            
-            output_filename = f"{os.path.splitext(filename)[0]}.json"
-            output_path = os.path.join("data/output", output_filename)
+                logging.info(f"Skipped {pdf_file} due to high percentage of 'email' or 'other' pages")
+                continue
+
+            relative_path = os.path.relpath(root, directory)
+            output_directory = os.path.join(output_base, relative_path)
+            os.makedirs(output_directory, exist_ok=True)
+
+            output_filename = f"{os.path.splitext(pdf_file)[0]}.json"
+            output_path = os.path.join(output_directory, output_filename)
             with open(output_path, "w") as f:
                 json.dump(output_data, f, indent=2)
-            json_output = json.dumps(output_data)
-            print(json_output, end="")
-            logging.info(f"Processed {filename} and saved output to {output_path}")
+            logging.info(f"Processed {pdf_file} and saved output to {output_path}")
 
-directory = "../../ocr/data/input"
-process_directory(directory)
+process_directory("../data/input/bias-2010-20214")

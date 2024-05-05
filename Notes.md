@@ -17,4 +17,11 @@
 - Correctness: “Which summary includes less false information?” This compares the summaries’ precision, i.e. instances of fabricated information.
 - Conciseness: “Which summary contains less non-important information?” This compares which summary is more condensed, as the value of a summary decreases with superfluous information.
 
+**Flow**:
+1. Doc classification. Determine whether the doc contains relevant pages. Set some threshold for which docs should be reviwed and which should be ignored.
+2. OCR
+3. Generate summaries of all docs. Determine if the docs can be further filtered (do we only want to iterate over certain pages? might optimize the flow)
+4. Generate summary/timeline/extract entities 
 
+**summary**
+1. Process in batches. Can we disregard certain batches based on whether it contains relevant info when compared to the memory log?

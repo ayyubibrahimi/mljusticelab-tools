@@ -373,27 +373,44 @@ def longest_common_substring(s1, s2):
 
 
 memory_log_template = """
-As an AI assistant, your task is to update the existing memory log based on the new summary provided. The current memory log is based on the previous iterations, and you are now reviewing the next subset of pages. This memory log is being used to help you understand the structure and key aspects of the entire document, even if you are viewing parts of the document that are not currently in your context window. These police investigative files were collected by an attorney. Please follow these guidelines:
+As an AI assistant acting from the perspective of an attorney, your task is to update the existing memory log only when the new summary contains information that is crucial to enhancing the overall understanding of the police investigative files. Keep in mind that there is an ideal version of the memory log that effectively captures the essential aspects of the case. Your goal is to maintain this ideal memory log and make changes only when strictly necessary.
 
-1. Review the current memory log and identify the key facts, events, and details that are still relevant for understanding the overall narrative of the investigative files.
-2. Analyze the new summary and identify any additional critical information, such as:
-   - New developments or findings in the investigation
-   - Important dates, times, and locations related to the events in the investigative files
-   - Statements or interviews from involved parties, witnesses, or other relevant individuals
-   - Physical evidence, documentation, or expert opinions collected during the investigation
-   - Relevant laws, regulations, or police procedures that may be applicable to the case
-3. Ensure that the updated memory log maintains consistency and coherence with the previous information while incorporating the new findings.
-4. If any information in the current memory log is no longer relevant or contradicts the new summary, remove or update it accordingly.
-5. When prioritizing information, consider what details would be essential for understanding the context and key aspects of the investigative files, even if they were initially mentioned in earlier pages. Keep in mind that this memory log serves as a reference to help you comprehend the entire document structure.
-6. Limit the updated memory log to a maximum of 10-12 bullet points, focusing on the most crucial information from the police investigative files.
-7. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for you to grasp the overall structure and content of the document.
+This memory log serves as the primary memory structure for maintaining a high-level understanding of the entire document, ensuring that you have the necessary context to comprehend the content of any given section, regardless of the specific details in the new summary input. It is integral to your ability to generate accurate summaries and draw meaningful connections between distant parts of the document.
 
-Please update the memory log based on the provided current memory log and the new summary:
+As you process new summaries, which are produced at 15-page intervals, be very cautious about making changes to the memory log. Only update it if the new information is highly relevant, directly addresses a significant gap in understanding, or corrects a critical inaccuracy. Remember, the goal is to maintain a consistent, high-level understanding of the document, rather than focusing on granular details from each new summary. The updated memory log will be available to you as you evaluate subsequent sections, allowing you to maintain a coherent understanding of the document's content.
 
-Current memory log: {memory_log}
-New summary: {summary}
+Please follow these guidelines:
+1. Carefully review the current memory log and the new summary to determine if the new information is essential to the overall understanding of the police investigative files and warrants updating the memory log.
 
-Updated Memory Log:
+2. If the new summary contains crucial information that is not adequately captured in the current memory log and is necessary for maintaining an accurate high-level understanding of the case, identify the key details to include, such as:
+   - Significant developments or findings in the investigation
+   - Critical dates, times, and locations related to the events
+   - Key statements or interviews from involved parties, witnesses, or other relevant individuals
+   - Vital physical evidence, documentation, or expert opinions
+   - Relevant laws, regulations, or police procedures applicable to the case
+
+3. Ensure that any updates to the memory log maintain consistency and coherence with the previous information while incorporating only the most essential new findings. Strive to maintain the chronological order of events when updating the memory log to preserve a clear and easily understandable narrative.
+
+4. If any information in the current memory log is contradicted by the new summary or found to be inaccurate, update it accordingly. However, be very cautious about removing information that may still be relevant to the overall context or that could become significant as the case progresses.
+
+5. Prioritize information based on its significance in understanding the key aspects of the investigative files. Look for connections or patterns across different parts of the document that might reveal important themes or recurring elements.
+
+6. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for grasping the overall structure and content of the document. Maintain a neutral, unbiased perspective and avoid making assumptions or drawing conclusions beyond what is explicitly stated in the summaries.
+
+7. If the new summary does not contain any information that significantly enhances the high-level understanding of the investigative files, directly addresses critical gaps in the current memory log, or contradicts existing information, it is crucial to return the current memory log without modifications.
+
+8. When encountering inconsistencies or contradictions between the new summary and the existing memory log, carefully evaluate the reliability and credibility of the sources before making any changes. If the discrepancy cannot be resolved with confidence, prioritize maintaining the coherence and stability of the existing memory log.
+
+
+## Do not exceed 15 bullet points ## 
+
+Please update the memory log based on the provided current memory log and the new summary ONLY if the new summary contains information that is critical to improving the overall understanding of the case or correcting inaccuracies in the current memory log. If no such vital updates are needed, it is essential to return the current memory log as is to maintain the ideal version of the memory log and preserve the high-level understanding of the document.
+
+##  Current memory log ##: {memory_log}
+
+## New summary ##: {summary}
+
+Return Memory Log:
 """
 
 def update_memory_log(memory_log, new_summary):

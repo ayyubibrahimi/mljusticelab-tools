@@ -15,6 +15,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from langchain_anthropic import ChatAnthropic
+import multiprocessing
 
 
 # nltk.download('stopwords')
@@ -133,41 +134,47 @@ Chronological Summary:
 """
 
 
-def generate_summaries(docs, query, window_size=500):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+
+def process_page(docs, i, query, window_size):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
-    output = []
 
-    for i in range(len(docs)):
-        current_page = docs[i].page_content.replace("\n", " ")
-        previous_page_ending = (
-            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
+    current_page = docs[i].page_content.replace("\n", " ")
+    previous_page_ending = (
+        docs[i - 1].page_content.replace("\n", " ")[-window_size:]
+        if i > 0
+        else ""
+    )
+    next_page_beginning = (
+        docs[i + 1].page_content.replace("\n", " ")[:window_size]
+        if i < len(docs) - 1
+        else ""
+    )
+    page_number = docs[i].metadata.get("seq_num")
+    response = {"page_content": "", "page_number": page_number}
+    if current_page:
+        processed_content = response_chain.invoke(
+            {
+                "question": query,
+                "previous_page_ending": previous_page_ending,
+                "current_page": current_page,
+                "next_page_beginning": next_page_beginning,
+            }
         )
-        next_page_beginning = (
-            docs[i + 1].page_content.replace("\n", " ")[:window_size]
-            if i < len(docs) - 1
-            else ""
-        )
-        page_number = docs[i].metadata.get("seq_num")
+        response["page_content"] = processed_content
+    return response
 
-        response = {"page_content": "", "page_number": page_number}
-        if current_page:
-            processed_content = response_chain.invoke(
-                {
-                    "question": query,
-                    "previous_page_ending": previous_page_ending,
-                    "current_page": current_page,
-                    "next_page_beginning": next_page_beginning,
-                }
-            )
-            response["page_content"] = processed_content
-            # print(response)
-        output.append(response)
+def generate_summaries(docs, query, window_size=500):
+    pool = multiprocessing.Pool()
+    results = pool.starmap(
+        process_page,
+        [(docs, i, query, window_size) for i in range(len(docs))],
+    )
+    pool.close()
+    pool.join()
 
-
-    return output
+    return results
 
 
 combine_template = """
@@ -436,9 +443,7 @@ Please follow these guidelines:
 
 8. When encountering inconsistencies or contradictions between the new summary and the existing memory log, carefully evaluate the reliability and credibility of the sources before making any changes. If the discrepancy cannot be resolved with confidence, prioritize maintaining the coherence and stability of the existing memory log.
 
-9. You can return the memory log without, if the new summary does not contain any important information. 
-
-10. Always return the current memory log or an updated memory log. 
+Please update the memory log based on the provided current memory log and the new summary ONLY if the new summary contains information that is critical to improving the overall understanding of the case or correcting inaccuracies in the current memory log. If no such vital updates are needed, it is essential to return the current memory log as is to maintain the ideal version of the memory log and preserve the high-level understanding of the document.
 
 ##  Current memory log ##: {memory_log}
 

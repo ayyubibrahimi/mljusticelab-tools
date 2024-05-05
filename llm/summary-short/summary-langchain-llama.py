@@ -10,8 +10,17 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 from langchain_anthropic import ChatAnthropic
+import csv
+
+
+from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+
 
 # nltk.download('stopwords')
 
@@ -121,11 +130,24 @@ Chronological Event Summary:
 """
 
 
-def generate_timeline(docs, query, window_size=500):
+def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+
+    HUGGINGFACEHUB_API_TOKEN = "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"
+    # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    # repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+    # repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+    
+
+    llm = HuggingFaceEndpoint(
+        endpoint_url="https://ey3h3fp1vsp5fhiy.us-east-1.aws.endpoints.huggingface.cloud", max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
+    )
+
     prompt_response = ChatPromptTemplate.from_template(generate_template)
     response_chain = prompt_response | llm | StrOutputParser()
+    vectorizer = TfidfVectorizer()
     output = []
 
     for i in range(len(docs)):
@@ -139,8 +161,12 @@ def generate_timeline(docs, query, window_size=500):
             else ""
         )
         page_number = docs[i].metadata.get("seq_num")
+        response = {
+            "page_content": "",
+            "page_number": page_number,
+            "similarity_score": 0.0,
+        }
 
-        response = {"page_content": "", "page_number": page_number}
         if current_page:
             processed_content = response_chain.invoke(
                 {
@@ -150,14 +176,21 @@ def generate_timeline(docs, query, window_size=500):
                     "next_page_beginning": next_page_beginning,
                 }
             )
+            print(processed_content)
+            corpus = [current_page, processed_content]
+            tf_idf_matrix = vectorizer.fit_transform(corpus)
+            similarity_score = cosine_similarity(
+                tf_idf_matrix[0:1], tf_idf_matrix[1:2]
+            )[0][0]
             response["page_content"] = processed_content
-        output.append(response)
+            response["similarity_score"] = similarity_score
 
-    # Write the output to a file named "output" in the "../data/" directory
-    with open("../data/output/general_timeline.json", "w") as file:
-        json.dump(output, file, indent=2)
+            if similarity_score >= similarity_threshold:
+                output.append(response)
 
-    # print("Generated page summaries:", output)
+    # # Write the output to a file named "output" in the "../data/" directory
+    # with open("../data/output/general_timeline.json", "w") as file:
+    #     json.dump(output, file, indent=2)
 
     return output
 
@@ -194,7 +227,17 @@ Combined Comprehensive Summary:
 
 def combine_summaries(summaries):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+
+    HUGGINGFACEHUB_API_TOKEN = "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"
+    # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    # repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+    # repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+    llm = HuggingFaceEndpoint(
+        endpoint_url="https://ey3h3fp1vsp5fhiy.us-east-1.aws.endpoints.huggingface.cloud", max_length=128, temperature=0.5, token=HUGGINGFACEHUB_API_TOKEN
+    )
+
     prompt_response = ChatPromptTemplate.from_template(combine_template)
 
     response_chain = prompt_response | llm | StrOutputParser()
@@ -221,174 +264,69 @@ def combine_summaries(summaries):
 
 def map_sentences_to_pages(combined_summary, summaries):
     sentence_embeddings = sentence_model.encode(
-        [str(sent).strip() for sent in nlp(combined_summary["page_content"]).sents]
+        [str(sent).strip() for sent in nlp(combined_summary).sents]
     )
     page_embeddings = [
         sentence_model.encode(summary["page_content"]) for summary in summaries
     ]
-
     sentence_to_page = {}
-    for idx, sentence in enumerate(nlp(combined_summary["page_content"]).sents):
-        page_similarities = []
+    for idx, sentence in enumerate(nlp(combined_summary).sents):
+        max_similarity = 0
+        page_number = None
         for page_idx, page_summary in enumerate(summaries):
             similarity = cosine_similarity(
                 [sentence_embeddings[idx]], [page_embeddings[page_idx]]
             )[0][0]
-            page_similarities.append((page_summary.get("page_number"), similarity))
-        page_similarities.sort(key=lambda x: x[1], reverse=True)
-        page_number, score = page_similarities[0]
-        page_number_candidate_2 = (
-            page_similarities[1][0] if len(page_similarities) > 1 else None
-        )
-        page_number_candidate_2_score = (
-            page_similarities[1][1] if len(page_similarities) > 1 else None
-        )
-        page_number_candidate_3 = (
-            page_similarities[2][0] if len(page_similarities) > 2 else None
-        )
-        page_number_candidate_3_score = (
-            page_similarities[2][1] if len(page_similarities) > 2 else None
-        )
-        sentence_to_page[str(sentence).strip()] = {
-            "page_number": page_number,
-            "page_number_score": score,
-            "page_number_candidate_2": page_number_candidate_2,
-            "page_number_candidate_2_score": page_number_candidate_2_score,
-            "page_number_candidate_3": page_number_candidate_3,
-            "page_number_candidate_3_score": page_number_candidate_3_score,
-        }
-
+            if similarity > max_similarity:
+                max_similarity = similarity
+                page_number = page_summary.get("page_number")
+        sentence_to_page[str(sentence).strip()] = page_number
     return sentence_to_page
 
 
 def process_summaries(summaries):
-    combined_summary = combine_summaries(summaries)
-    sentence_to_page = map_sentences_to_pages(combined_summary, summaries)
+    combined_summary_dict = combine_summaries(summaries)
+    combined_summary = combined_summary_dict["page_content"]
+    combined_page_numbers = combined_summary_dict["page_numbers"]
 
-    with open("../data/output/combined_summaries.json", "w") as file:
-        json.dump(combined_summary, file, indent=2)
+    # Unpack page_content values into a string
+    combined_content = ""
+    for summary in summaries:
+        combined_content += summary["page_content"] + " "
+
+    sentence_to_page = map_sentences_to_pages(combined_content.strip(), summaries)
+
+    # Append page numbers to each sentence in the response
+    annotated_response = ""
+    for sentence in nlp(combined_summary).sents:
+        sentence_text = str(sentence).strip()
+        page_number = sentence_to_page.get(sentence_text)
+        if page_number:
+            annotated_response += f"{sentence_text} (Page Number: {page_number}). "
+        else:
+            annotated_response += f"{sentence_text}. "
 
     # print("Sentence to page mapping:", sentence_to_page)
-    return combined_summary, sentence_to_page
+    return annotated_response, sentence_to_page
 
 
-cross_reference_template = """
-As an AI assistant, your task is to compare the ground truth summary with the summary of summaries and identify any missing or inconsistent information. Please follow these steps to augment the summary of summaries:
-
-Carefully review the ground truth summary and identify all key events, details, and relevant information, such as:
-Significant actions taken by individuals involved
-Precise dates, times, and locations of events
-Critical details about the crime, investigation, arrests, and evidence
-Important background information about the individuals involved
-Compare the identified key information from the ground truth summary with the content of the summary of summaries.
-For each piece of key information from the ground truth summary, determine if it is: a) Present in the summary of summaries and consistent b) Present in the summary of summaries but inconsistent or incomplete c) Missing from the summary of summaries entirely
-Based on your analysis, augment the summary of summaries:
-For information that is present and consistent, no changes are needed.
-For information that is present but inconsistent or incomplete, update the relevant parts of the summary of summaries to match the ground truth.
-For information that is missing, add it to the summary of summaries in the most appropriate location to maintain chronological order and narrative flow.
-Ensure that the augmented summary of summaries:
-Includes all the key information from the ground truth summary
-Maintains a coherent structure and logical flow
-Uses clear and concise language
-Is free of inconsistencies or contradictions
-If there is any information in the summary of summaries that directly conflicts with the ground truth summary, prioritize the information from the ground truth summary.
-
-After augmenting the summary of summaries, review it once more to ensure it is a comprehensive, accurate, and well-structured representation of the events described in the ground truth summary.
-
-Your augmented summary must be at least 1000 tokens in length. 
-
-Groundtruth Summary:
-{groundtruth}
-
-Summary of Summaries:
-{summary_of_summaries}
-
-Augmented Summary of Summaries:
-"""
-
-
-def cross_reference_summaries(groundtruth, summary, summaries):
-
-    llm = ChatAnthropic(model_name="claude-3-opus-20240229")
-
-    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
-    response_chain = prompt_response | llm | StrOutputParser()
-
-    response = response_chain.invoke(
-        {"groundtruth": groundtruth, "summary_of_summaries": summary}
-    )
-
-
-    augmented_summary = {"page_content": response}
-    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
-
-    return response, sentence_to_page
-
-
-comparison_template = """
-As an AI assistant, 
-your task is to compare the groundtruth summary with the generated summary of summaries and provide a score from 0 to 10 indicating how well the summary of summaries reflects the information in the groundtruth.
-
-roundtruth Summary:
-{groundtruth}
-
-Summary of Summaries:
-{summary_of_summaries}
-
-Score: 
-1-10
-
-Limit your response to the score. 
-"""
-
-
-def compare_summaries(groundtruth, summary):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    prompt_response = ChatPromptTemplate.from_template(comparison_template)
-    response_chain = prompt_response | llm | StrOutputParser()
-
-    response = response_chain.invoke(
-        {"groundtruth": groundtruth, "summary_of_summaries": summary}
-    )
-
-    return response
-
-
-def write_json_output(combined_summary, sentence_to_page, output_file_path):
-    output_data = []
-    for sentence, page_number in sentence_to_page.items():
-        page_number_dict = {
-            "sentence": sentence,
-            "page_number": int(page_number["page_number"]),
-            "page_number_score": float(page_number["page_number_score"]),
-            "page_number_candidate_2": int(page_number["page_number_candidate_2"])
-            if page_number["page_number_candidate_2"] is not None
-            else None,
-            "page_number_candidate_2_score": float(
-                page_number["page_number_candidate_2_score"]
-            )
-            if page_number["page_number_candidate_2_score"] is not None
-            else None,
-            "page_number_candidate_3": int(page_number["page_number_candidate_3"])
-            if page_number["page_number_candidate_3"] is not None
-            else None,
-            "page_number_candidate_3_score": float(
-                page_number["page_number_candidate_3_score"]
-            )
-            if page_number["page_number_candidate_3_score"] is not None
-            else None,
-        }
-        output_data.append(page_number_dict)
-
-    with open(output_file_path, "w") as file:
-        json.dump(output_data, file, indent=4)
+def write_csv_output(combined_summary, filename, output_file_path):
+    with open(output_file_path, "a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([os.path.splitext(filename)[0], combined_summary])
 
 
 if __name__ == "__main__":
-    input_directory = "../../ocr/data/output"
+    input_directory = "../../ocr/data/output/archive"
     output_directory = "../data/output"
+    output_csv_path = os.path.join(output_directory, "summary_output.csv")
+
+    # Write the CSV header if the file doesn't exist
+    if not os.path.exists(output_csv_path):
+        with open(output_csv_path, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["filename", "response"])
+
     for filename in os.listdir(input_directory):
         if filename.endswith(".json"):
             json_path = os.path.join(input_directory, filename)
@@ -397,45 +335,5 @@ if __name__ == "__main__":
             page_summaries = generate_timeline(docs, query)
             print(page_summaries)
 
-            max_iterations = 3
-            iteration = 0
-            while iteration < max_iterations:
-                logger.info(
-                    f"Processing {filename} - Iteration {iteration + 1}/{max_iterations}"
-                )
-
-                combined_summary, sentence_to_page = process_summaries(page_summaries)
-                augmented_summary, updated_sentence_to_page = cross_reference_summaries(
-                    page_summaries, combined_summary, page_summaries
-                )
-
-                comparison_score_text = compare_summaries(
-                    page_summaries, combined_summary
-                )
-                score_match = re.search(r"Score:\s*(\d+)", comparison_score_text)
-                if score_match:
-                    comparison_score = int(score_match.group(1))
-                else:
-                    comparison_score = int(comparison_score_text.strip())
-
-                logger.info(
-                    f"Comparison score for {filename} - Iteration {iteration + 1}: {comparison_score}"
-                )
-
-                if comparison_score >= 8:
-                    logger.info(
-                        f"Satisfactory score achieved for {filename} - Iteration {iteration + 1}"
-                    )
-                    break
-
-                iteration += 1
-
-            if iteration == max_iterations:
-                logger.warning(f"Maximum iterations reached for {filename}")
-
-            output_json_path = os.path.join(
-                output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
-            )
-            write_json_output(
-                augmented_summary, updated_sentence_to_page, output_json_path
-            )
+            combined_summary, sentence_to_page = process_summaries(page_summaries)
+            write_csv_output(combined_summary, filename, output_csv_path)

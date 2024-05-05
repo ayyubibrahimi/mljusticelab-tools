@@ -15,6 +15,8 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from langchain_anthropic import ChatAnthropic
+import multiprocessing
+
 
 
 # nltk.download('stopwords')
@@ -133,41 +135,46 @@ Chronological Summary:
 """
 
 
-def generate_summaries(docs, query, window_size=500):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+def process_page(docs, i, query, window_size):
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
-    output = []
 
-    for i in range(len(docs)):
-        current_page = docs[i].page_content.replace("\n", " ")
-        previous_page_ending = (
-            docs[i - 1].page_content.replace("\n", " ")[-window_size:] if i > 0 else ""
+    current_page = docs[i].page_content.replace("\n", " ")
+    previous_page_ending = (
+        docs[i - 1].page_content.replace("\n", " ")[-window_size:]
+        if i > 0
+        else ""
+    )
+    next_page_beginning = (
+        docs[i + 1].page_content.replace("\n", " ")[:window_size]
+        if i < len(docs) - 1
+        else ""
+    )
+    page_number = docs[i].metadata.get("seq_num")
+    response = {"page_content": "", "page_number": page_number}
+    if current_page:
+        processed_content = response_chain.invoke(
+            {
+                "question": query,
+                "previous_page_ending": previous_page_ending,
+                "current_page": current_page,
+                "next_page_beginning": next_page_beginning,
+            }
         )
-        next_page_beginning = (
-            docs[i + 1].page_content.replace("\n", " ")[:window_size]
-            if i < len(docs) - 1
-            else ""
-        )
-        page_number = docs[i].metadata.get("seq_num")
+        response["page_content"] = processed_content
+    return response
 
-        response = {"page_content": "", "page_number": page_number}
-        if current_page:
-            processed_content = response_chain.invoke(
-                {
-                    "question": query,
-                    "previous_page_ending": previous_page_ending,
-                    "current_page": current_page,
-                    "next_page_beginning": next_page_beginning,
-                }
-            )
-            response["page_content"] = processed_content
-            # print(response)
-        output.append(response)
+def generate_summaries(docs, query, window_size=500):
+    pool = multiprocessing.Pool()
+    results = pool.starmap(
+        process_page,
+        [(docs, i, query, window_size) for i in range(len(docs))],
+    )
+    pool.close()
+    pool.join()
 
-
-    return output
+    return results
 
 
 combine_template = """
@@ -367,46 +374,6 @@ def longest_common_substring(s1, s2):
     return s1[start_pos:end_pos]
 
 
-# memory_log_template = """
-# As an AI assistant acting from the perspective of an attorney, your task is to update the existing memory log based on the new summary provided. This memory log serves as the primary memory structure for maintaining a long-term understanding of the police investigative files, ensuring that you have the necessary context to comprehend the content of any given page, even if it is far removed from the introductory text.
-
-# Your goal is to keep the memory log concise while capturing the most critical information for understanding the overall narrative and key developments throughout the entire document. This long-term memory is integral to your ability to generate accurate summaries and draw meaningful connections between distant parts of the document.
-
-# It is crucial to understand that the current memory log is based on summaries of previous pages, and as you process new summaries, you will continually update this memory log. The updated memory log will be available to you as you evaluate subsequent pages, allowing you to maintain a coherent and comprehensive understanding of the document's content.
-
-# Please follow these guidelines:
-# 1. Review the current memory log and identify the key facts, events, and details that are essential for comprehending the context and structure of the investigative files.
-
-# 2. Analyze the new summary and identify any additional crucial information, such as:
-#    - Significant developments or findings in the investigation
-#    - Critical dates, times, and locations related to the events
-#    - Key statements or interviews from involved parties, witnesses, or other relevant individuals
-#    - Vital physical evidence, documentation, or expert opinions
-#    - Relevant laws, regulations, or police procedures applicable to the case
-
-# 3. Ensure that the updated memory log maintains consistency and coherence with the previous information while incorporating the new essential findings.
-
-# 4. If any information in the current memory log is no longer relevant, contradicts the new summary, or is of minor importance, remove or update it accordingly.
-
-# 5. Prioritize information based on its significance in understanding the context and key aspects of the investigative files, even if initially mentioned in earlier summaries.
-
-# 6. Limit the updated memory log to a maximum of 8-10 bullet points, focusing on the most vital information required to comprehend the content at any point in the police investigative files.
-
-# 7. Use clear, concise, and objective language to describe each point, ensuring that the information is easily understandable and serves as a quick reference for grasping the overall structure and content of the document.
-
-# 8. If the new summary does not contain any information that significantly adds to the overall understanding of the investigative files or does not warrant changes to the existing memory log, it is essential to return the current memory log without modifications.
-
-# 9. Evaluate the updated memory log against the current memory log. If the current memory log is more effective at capturing the essential information and context required for long-term understanding, do not update it and instead return the current memory log.
-
-# Please update the memory log based on the provided current memory log and the new summary. If no significant changes are needed or the current memory log is more effective, it is crucial to return the current memory log as is.
-
-# Current memory log: {memory_log}
-# New summary: {summary}
-
-# Updated Memory Log or Current Memory Log:
-# """
-
-## v2
 memory_log_template = """
 As an AI assistant acting from the perspective of an attorney, your task is to update the existing memory log only when the new summary contains information that is crucial to enhancing the overall understanding of the police investigative files. Keep in mind that there is an ideal version of the memory log that effectively captures the essential aspects of the case. Your goal is to maintain this ideal memory log and make changes only when strictly necessary.
 
@@ -436,9 +403,9 @@ Please follow these guidelines:
 
 8. When encountering inconsistencies or contradictions between the new summary and the existing memory log, carefully evaluate the reliability and credibility of the sources before making any changes. If the discrepancy cannot be resolved with confidence, prioritize maintaining the coherence and stability of the existing memory log.
 
-9. You can return the memory log without, if the new summary does not contain any important information. 
+## Do not exceed 15 bullet points ## 
 
-10. Always return the current memory log or an updated memory log. 
+Please update the memory log based on the provided current memory log and the new summary ONLY if the new summary contains information that is critical to improving the overall understanding of the case or correcting inaccuracies in the current memory log. If no such vital updates are needed, it is essential to return the current memory log as is to maintain the ideal version of the memory log and preserve the high-level understanding of the document.
 
 ##  Current memory log ##: {memory_log}
 
@@ -447,10 +414,9 @@ Please follow these guidelines:
 Return Memory Log:
 """
 
-
 def update_memory_log(memory_log, new_summary):
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
     llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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")
     memory_log_prompt = ChatPromptTemplate.from_template(memory_log_template)
     memory_log_chain = memory_log_prompt | llm | StrOutputParser()
 
@@ -459,12 +425,11 @@ def update_memory_log(memory_log, new_summary):
     return updated_memory_log
 
 
-def process_summaries(summaries, docs):
-    memory_log = ""
-    combined_summary, memory_log = combine_summaries(summaries, memory_log)
+def process_summaries(summaries, docs, memory_log):
+    combined_summary, updated_memory_log = combine_summaries(summaries, memory_log)
     sentence_to_page = map_sentences_to_pages(combined_summary, docs)
 
-    return combined_summary, sentence_to_page
+    return combined_summary, sentence_to_page, updated_memory_log
 
 
 def write_json_output(sentence_to_page, output_file_path):
@@ -497,7 +462,6 @@ def write_json_output(sentence_to_page, output_file_path):
     with open(output_file_path, "w") as file:
         json.dump(output_data, file, indent=4)
 
-
 if __name__ == "__main__":
     input_directory = "../../ocr/data/output"
     output_directory = "../data/output"
@@ -506,12 +470,45 @@ if __name__ == "__main__":
         if filename.endswith(".json"):
             json_path = os.path.join(input_directory, filename)
             docs = load_and_split(json_path)
-            # print(docs)
             query = "Generate a timeline of events based on the police report."
-            page_summaries = generate_summaries(docs, query)
 
-            combined_summary, sentence_to_page = process_summaries(page_summaries, docs)
-            output_json_path = os.path.join(
-                    output_directory, f"{os.path.splitext(filename)[0]}_summary.json"
+            interval_size = 20
+            num_intervals = (len(docs) + interval_size - 1) // interval_size
+            interval_summaries = []
+
+            memory_log = ""
+
+            for interval in range(num_intervals):
+                start_index = interval * interval_size
+                end_index = min((interval + 1) * interval_size, len(docs))
+                interval_docs = docs[start_index:end_index]
+
+                page_summaries = generate_summaries(interval_docs, query)
+                combined_summary, sentence_to_page, memory_log = process_summaries(page_summaries, interval_docs, memory_log)
+
+                interval_output_json_path = os.path.join(
+                    output_directory, f"{os.path.splitext(filename)[0]}_interval_{interval+1}_summary.json"
                 )
-            write_json_output(sentence_to_page, output_json_path)
+                write_json_output(sentence_to_page, interval_output_json_path)
+
+                # Split the combined summary into sentences
+                sentences = combined_summary["page_content"].split("\n- ")
+                for sentence in sentences:
+                    # Skip empty sentences
+                    if sentence.strip():
+                        sentence_info = sentence_to_page.get(sentence.strip(), {})
+                        interval_summaries.append({
+                            "sentence": sentence.strip(),
+                            "page_number": sentence_info.get("page_number", None),
+                            "page_number_score": sentence_info.get("page_number_score", None),
+                            "page_number_candidate_2": sentence_info.get("page_number_candidate_2", None),
+                            "page_number_candidate_2_score": sentence_info.get("page_number_candidate_2_score", None),
+                            "page_number_candidate_3": sentence_info.get("page_number_candidate_3", None),
+                            "page_number_candidate_3_score": sentence_info.get("page_number_candidate_3_score", None)
+                        })
+
+            combined_output_json_path = os.path.join(
+                output_directory, f"{os.path.splitext(filename)[0]}_combined_summary.json"
+            )
+            with open(combined_output_json_path, "w") as file:
+                json.dump(interval_summaries, file, indent=4)
