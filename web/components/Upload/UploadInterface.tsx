@@ -12,98 +12,85 @@ import AnalysisButtons from './AnalysisButtons';
 
 const UploadInterface: React.FC = () => {
   const [processingStatus, setProcessingStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
-  const [sentencePagePairs, setSentencePagePairs] = useState<{
-    sentence: string;
-    page_number?: number;
-    page_number_score?: number;
-    page_number_candidate_2?: number;
-    page_number_candidate_2_score?: number;
-    page_number_candidate_3?: number;
-    page_number_candidate_3_score?: number;
-  }[]>([]);
+  const [sentencePagePairs, setSentencePagePairs] = useState([]);
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [pdfPages, setPdfPages] = useState<string[]>([]);
-
-  interface TocItem {
-    sentence: { text: string }[];
-    page_number: number;
-  }
-  
-  const [tocData, setTocData] = useState<TocItem[]>([]);
-  
+  const [tocData, setTocData] = useState([]);
   const [csvFilePath, setCsvFilePath] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('');
-  const [selectedScript, setSelectedScript] = useState<'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py'>('process.py');
-  const [selectedAnalysis, setSelectedAnalysis] = useState<'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py' | null>(null);
+  const [selectedScript, setSelectedScript] = useState('process.py');
+  const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+  const [bulkSummary, setBulkSummary] = useState([]);
+  const [savedResponses, setSavedResponses] = useState([]);
+  const [displayedContent, setDisplayedContent] = useState(null);
+  const [displayedSavedResponse, setDisplayedSavedResponse] = useState(null);
 
-  const handleAnalysisClick = (analysis: 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py') => {
+  useEffect(() => {
+    const saved = localStorage.getItem('savedResponses');
+    if (process.env.NODE_ENV === 'development') {
+      localStorage.clear();
+    } else if (saved) {
+      setSavedResponses(JSON.parse(saved));
+    }
+  }, []);
+
+  const handleDisplaySavedResponse = (content) => {
+    setDisplayedSavedResponse(content);
+    setDisplayedContent(null); // Clear the displayed content when showing a saved response
+  };
+
+  const saveResponseToLocalStorage = (content) => {
+    const newResponseId = savedResponses.length + 1;
+    const newResponse = {
+      id: newResponseId,
+      label: `Saved Response ${newResponseId}`,
+      content: {
+        filePath: uploadedFilePath,
+        sentencePagePairs: sentencePagePairs,
+      },
+    };
+    const updatedResponses = [...savedResponses, newResponse];
+    setSavedResponses(updatedResponses);
+    localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
+  };
+
+  const handleAnalysisClick = (analysis) => {
     setSelectedAnalysis(analysis);
     setSelectedScript(analysis);
   };
 
-  interface BulkSummaryItem {
-    filename: string;
-    summary: string;
-    total_pages: number;
-  }
-  
-  const [bulkSummary, setBulkSummary] = useState<BulkSummaryItem[]>([]);
-  
-
-  const handleFileUpload = async (files: File[]) => {
+  const handleFileUpload = async (files) => {
     setProcessingStatus('processing');
-    setSentencePagePairs([]);
-    setPdfPages([]);
-    setTocData([]);
-    setCsvFilePath(null);
-    setBulkSummary([]);
-
     const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
+    files.forEach(file => formData.append('files', file));
     formData.append('script', selectedScript);
     formData.append('model', selectedModel);
-
-
+  
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
+      const response = await fetch('/api/upload', { method: 'POST', body: formData });
       if (response.ok) {
         const data = await response.json();
-        console.log('Response data:', data);
-
-        if (selectedScript === 'process.py' && Array.isArray(data.sentencePagePairs)) {
+        if (selectedScript === 'process.py') {
           setSentencePagePairs(data.sentencePagePairs);
-          setUploadedFilePath(data.filePath);
-          console.log('Updated sentencePagePairs state:', data.sentencePagePairs);
-        } if (selectedScript === 'toc.py' && data.tocData) {
+          setDisplayedContent({
+            filePath: data.filePath,
+            sentencePagePairs: data.sentencePagePairs,
+          });
+        } else if (selectedScript === 'toc.py') {
           setTocData(data.tocData);
-          setUploadedFilePath(data.filePath);
-          console.log('Updated tocData state:', data.tocData);
-
-        } else if (selectedScript === 'entity.py' && data.csvFilePath) {
+        } else if (selectedScript === 'entity.py') {
           setCsvFilePath(data.csvFilePath);
-          console.log('CSV file path:', data.csvFilePath);
-        }
-
-        if (selectedScript === 'bulk_summary.py' && Array.isArray(data.summaries)) {
+        } else if (selectedScript === 'bulk_summary.py') {
           setBulkSummary(data.summaries);
-          console.log('Updated bulkSummary state:', data.summaries);
-        } else {
-          console.error('Invalid response format.');
         }
-    
-
+        setUploadedFilePath(data.filePath);
+        setDisplayedSavedResponse(null); // Clear the displayed saved response
         setProcessingStatus('completed');
       } else {
-        setProcessingStatus('idle');
         console.error('File processing failed');
+        setProcessingStatus('idle');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -111,7 +98,7 @@ const UploadInterface: React.FC = () => {
     }
   };
 
-  const handlePageClick = (pageNumber: number) => {
+  const handlePageClick = (pageNumber) => {
     setSelectedPage(pageNumber);
   };
 
@@ -133,41 +120,42 @@ const UploadInterface: React.FC = () => {
     ),
   ];
 
+  const handleClearScreen = () => {
+    setDisplayedContent(null);
+    setDisplayedSavedResponse(null);
+    setSelectedAnalysis(null);
+    setProcessingStatus('idle');
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.contentContainer}>
         <Sidebar
-          pages={uniquePageNumbers as number[]}
+          pages={uniquePageNumbers}
           onPageClick={handlePageClick}
           sentencePagePairs={sentencePagePairs}
           tocData={tocData}
+          onSavedResponseClick={handleDisplaySavedResponse}
+          savedResponses={savedResponses}
         />
         <div className={styles.outputContainer}>
           <div className={styles.outputHeader}>
             <div className={styles.dropdownContainer}>
-              <ScriptDropdown
-                selectedScript={selectedScript}
-                onScriptChange={setSelectedScript}
-              />
-              <ModelDropdown
-                selectedModel={selectedModel}
-                onModelChange={setSelectedModel}
-              />
+              <ScriptDropdown selectedScript={selectedScript} onScriptChange={setSelectedScript} />
+              <ModelDropdown selectedModel={selectedModel} onModelChange={setSelectedModel} />
             </div>
             <span>Innocence Lab</span>
           </div>
-
           <div className={styles.outputContent}>
-            {processingStatus !== 'completed' && (
-              <AnalysisButtons
-                selectedAnalysis={selectedAnalysis}
-                onAnalysisClick={handleAnalysisClick}
-              />
+            {processingStatus !== 'completed' && !displayedContent && !displayedSavedResponse && (
+              <AnalysisButtons selectedAnalysis={selectedAnalysis} onAnalysisClick={handleAnalysisClick} />
             )}
-          </div>
-          {processingStatus === 'completed' && selectedScript === 'process.py' && (
+            
+            {displayedContent ? (
+              <div className={styles.displayedContentArea}>
+                <p>File Path: {displayedContent.filePath}</p>
                 <div ref={outputRef} className={styles.processOutput}>
-                  {sentencePagePairs.map((pair, index) => (
+                  {displayedContent.sentencePagePairs.map((pair, index) => (
                     <React.Fragment key={index}>
                       <Tippy
                         content={
@@ -199,49 +187,54 @@ const UploadInterface: React.FC = () => {
                     </React.Fragment>
                   ))}
                 </div>
-              )}
-          
-          
-          {processingStatus === 'completed' && selectedScript === 'toc.py' && (
-              <div ref={outputRef}>
-                <div className={styles.tocSection}>
-                  <pre>
-                    {tocData.map((pageData, pageIndex) => (
-                      pageData.sentence.map((sentenceData, sentenceIndex) => {
-                        const text = sentenceData.text;
-                        const modifiedText = text.replace(/^(\d+\.)$/gm, '\n$1');
-                        return modifiedText.replace(/^\s+/gm, '');
-                      }).join('\n')
-                    )).join('\n')}
-                  </pre>
+              </div>
+            ) : displayedSavedResponse ? (
+              <div className={styles.displayedSavedResponseArea}>
+                <p>File Path: {displayedSavedResponse.filePath}</p>
+                <div ref={outputRef} className={styles.processOutput}>
+                  {displayedSavedResponse.sentencePagePairs.map((pair, index) => (
+                    <React.Fragment key={index}>
+                      <Tippy
+                        content={
+                          <div className={styles.tippyContent}>
+                            <div className={styles.tippyTitle}>Associated Pages</div>
+                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                            {pair.page_number_candidate_2 && (
+                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                            )}
+                            {pair.page_number_candidate_3 && (
+                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                            )}
+                          </div>
+                        }
+                        theme="custom"
+                        followCursor={true}
+                        plugins={[followCursor]}
+                        className={styles.tippyTooltip}
+                      >
+                        <span
+                          onClick={() => setSelectedPage(pair.page_number)}
+                          className={styles.clickableSentence}
+                        >
+                          {pair.sentence}
+                        </span>
+                      </Tippy>
+                      {(index + 1) % 4 === 0 && <br />}
+                      {(index + 1) % 4 === 0 && <br />}
+                    </React.Fragment>
+                  ))}
                 </div>
               </div>
-            )}
-                                                
-            {processingStatus === 'completed' && selectedScript === 'entity.py' && (
-              <div>
-                <button onClick={() => window.open(csvFilePath, '_blank')}>Download CSV</button>
-              </div>
-            )}
-            
-            {processingStatus === 'completed' && selectedScript === 'bulk_summary.py' && (
-              <div ref={outputRef}>
-                {bulkSummary.length > 0 ? (
-                  bulkSummary.map((item, index) => (
-                    <div key={index}>
-                      <h3>File: {item.filename}</h3>
-                      <p>Total Pages: {item.total_pages}</p>
-                      <p>{item.summary}</p>
-                      <hr />
-                    </div>
-                  ))
-                ) : (
-                  <p>No summary available</p>
-                )}
-              </div>
-            )}
+            ) : null}
+          </div>
           <div className={styles.uploadSection}>
-            <FileUpload onFileUpload={handleFileUpload} disabled={processingStatus === 'processing'} multiple />
+            <FileUpload
+              onFileUpload={handleFileUpload}
+              onSaveOutput={saveResponseToLocalStorage}
+              disabled={processingStatus === 'processing'}
+              multiple
+              onClearScreen={handleClearScreen} // Pass the handleClearScreen function
+            />
           </div>
         </div>
       </div>

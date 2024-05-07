@@ -2,18 +2,22 @@ import React, { useState } from 'react';
 import styles from './UploadInterface.module.scss';
 
 interface FileUploadProps {
-  onFileUpload: (files: File[]) => void;
+  onFileUpload: (files: File[]) => Promise<any>;
+  onSaveOutput: (content: any) => void;
   disabled?: boolean;
   multiple?: boolean;
+  onClearScreen: () => void; // Add this prop
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled, multiple }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, onSaveOutput, disabled, multiple, onClearScreen }) => {
   const [files, setFiles] = useState<File[]>([]);
+  const [lastUploadedData, setLastUploadedData] = useState<any>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (selectedFiles) {
       setFiles(Array.from(selectedFiles));
+      onClearScreen(); // Call the onClearScreen function when new files are selected
     }
   };
 
@@ -23,7 +27,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled, multipl
       alert('Please select one or more PDF files to upload.');
       return;
     }
-    onFileUpload(files);
+    setLastUploadedData(null);
+    onFileUpload(files)
+      .then(data => {
+        setLastUploadedData(data);
+      })
+      .catch(error => {
+        console.error('Upload failed:', error);
+      });
   };
 
   return (
@@ -36,12 +47,21 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, disabled, multipl
           className={styles.fileInput}
           id="fileInput"
           multiple={multiple}
+          disabled={disabled}
         />
         <label htmlFor="fileInput" className={styles.fileInputLabel}>
           Upload files
         </label>
         <button type="submit" disabled={disabled} className={styles.processButton}>
           {disabled ? 'Processing...' : 'Process'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSaveOutput(lastUploadedData)}
+          disabled={disabled}
+          className={styles.saveButton}
+        >
+          Save Response
         </button>
       </div>
     </form>
