@@ -72,11 +72,28 @@ const UploadInterface: React.FC = () => {
       const response = await fetch('/api/upload', { method: 'POST', body: formData });
       if (response.ok) {
         const data = await response.json();
+        console.log('Raw data received from the backend:', data);
+  
         if (selectedScript === 'process.py') {
-          setSentencePagePairs(data.sentencePagePairs);
+          let parsedSentencePagePairs;
+          if (Array.isArray(data.results)) {
+            // Handle array format
+            parsedSentencePagePairs = data.results;
+            console.log('Parsed sentence-page pairs (array format):', parsedSentencePagePairs);
+          } else if (data.sentencePagePairs) {
+            // Handle JSON string format
+            parsedSentencePagePairs = JSON.parse(data.sentencePagePairs);
+            console.log('Parsed sentence-page pairs (JSON string format):', parsedSentencePagePairs);
+          } else {
+            console.error('Invalid data format for sentence-page pairs');
+            setProcessingStatus('idle');
+            return;
+          }
+  
+          setSentencePagePairs(parsedSentencePagePairs);
           setDisplayedContent({
-            filePath: data.filePath,
-            sentencePagePairs: data.sentencePagePairs,
+            filePath: uploadedFilePath,
+            sentencePagePairs: parsedSentencePagePairs,
           });
         } else if (selectedScript === 'toc.py') {
           setTocData(data.tocData);
@@ -85,7 +102,6 @@ const UploadInterface: React.FC = () => {
         } else if (selectedScript === 'bulk_summary.py') {
           setBulkSummary(data.summaries);
         }
-        setUploadedFilePath(data.filePath);
         setDisplayedSavedResponse(null); // Clear the displayed saved response
         setProcessingStatus('completed');
       } else {
@@ -108,17 +124,19 @@ const UploadInterface: React.FC = () => {
     }
   }, [sentencePagePairs, pdfPages, tocData]);
 
-  const uniquePageNumbers = [
-    ...new Set(
-      sentencePagePairs
-        .flatMap(pair => [
-          pair.page_number,
-          pair.page_number_candidate_2,
-          pair.page_number_candidate_3,
-        ])
-        .filter(Boolean)
-    ),
-  ];
+  const uniquePageNumbers = sentencePagePairs && Array.isArray(sentencePagePairs)
+  ? [
+      ...new Set(
+        sentencePagePairs
+          .flatMap(pair => [
+            pair.page_number,
+            pair.page_number_candidate_2,
+            pair.page_number_candidate_3,
+          ])
+          .filter(Boolean)
+      ),
+    ]
+  : [];
 
   const handleClearScreen = () => {
     setDisplayedContent(null);
@@ -150,42 +168,46 @@ const UploadInterface: React.FC = () => {
             {processingStatus !== 'completed' && !displayedContent && !displayedSavedResponse && (
               <AnalysisButtons selectedAnalysis={selectedAnalysis} onAnalysisClick={handleAnalysisClick} />
             )}
-            
-            {displayedContent ? (
+  
+            {displayedContent && selectedScript === 'process.py' ? (
               <div className={styles.displayedContentArea}>
                 <p>File Path: {displayedContent.filePath}</p>
                 <div ref={outputRef} className={styles.processOutput}>
-                  {displayedContent.sentencePagePairs.map((pair, index) => (
-                    <React.Fragment key={index}>
-                      <Tippy
-                        content={
-                          <div className={styles.tippyContent}>
-                            <div className={styles.tippyTitle}>Associated Pages</div>
-                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                            {pair.page_number_candidate_2 && (
-                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                            )}
-                            {pair.page_number_candidate_3 && (
-                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                            )}
-                          </div>
-                        }
-                        theme="custom"
-                        followCursor={true}
-                        plugins={[followCursor]}
-                        className={styles.tippyTooltip}
-                      >
-                        <span
-                          onClick={() => setSelectedPage(pair.page_number)}
-                          className={styles.clickableSentence}
+                  {displayedContent.sentencePagePairs && Array.isArray(displayedContent.sentencePagePairs) ? (
+                    displayedContent.sentencePagePairs.map((pair, index) => (
+                      <React.Fragment key={index}>
+                        <Tippy
+                          content={
+                            <div className={styles.tippyContent}>
+                              <div className={styles.tippyTitle}>Associated Pages</div>
+                              <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                              {pair.page_number_candidate_2 !== null && (
+                                <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                              )}
+                              {pair.page_number_candidate_3 !== null && (
+                                <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                              )}
+                            </div>
+                          }
+                          theme="custom"
+                          followCursor={true}
+                          plugins={[followCursor]}
+                          className={styles.tippyTooltip}
                         >
-                          {pair.sentence}
-                        </span>
-                      </Tippy>
-                      {(index + 1) % 4 === 0 && <br />}
-                      {(index + 1) % 4 === 0 && <br />}
-                    </React.Fragment>
-                  ))}
+                          <span
+                            onClick={() => setSelectedPage(pair.page_number)}
+                            className={styles.clickableSentence}
+                          >
+                            {pair.sentence}
+                          </span>
+                        </Tippy>
+                        {(index + 1) % 4 === 0 && <br />}
+                        {(index + 1) % 4 === 0 && <br />}
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <p>No sentence-page pairs available.</p>
+                  )}
                 </div>
               </div>
             ) : displayedSavedResponse ? (
@@ -199,10 +221,10 @@ const UploadInterface: React.FC = () => {
                           <div className={styles.tippyContent}>
                             <div className={styles.tippyTitle}>Associated Pages</div>
                             <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                            {pair.page_number_candidate_2 && (
+                            {pair.page_number_candidate_2 !== null && (
                               <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
                             )}
-                            {pair.page_number_candidate_3 && (
+                            {pair.page_number_candidate_3 !== null && (
                               <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
                             )}
                           </div>
@@ -233,7 +255,7 @@ const UploadInterface: React.FC = () => {
               onSaveOutput={saveResponseToLocalStorage}
               disabled={processingStatus === 'processing'}
               multiple
-              onClearScreen={handleClearScreen} // Pass the handleClearScreen function
+              onClearScreen={handleClearScreen}
             />
           </div>
         </div>

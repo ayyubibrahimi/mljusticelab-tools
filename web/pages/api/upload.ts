@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const ocrPromises = files.map((file) => {
         const tempFilePath = `public/uploads/${file.filename}.pdf`;
         fs.renameSync(file.path, tempFilePath);
-        const tempOutputPath = `${batchDirectory}${file.filename}.json`;
+        const tempOutputPath = `${batchDirectory}${file.originalname}.json`;
 
         const ocrScriptPath = path.join(scriptsDir, 'ocr.py');
         const ocrProcess = spawn('python3', [ocrScriptPath, tempFilePath, tempOutputPath]);
@@ -108,126 +108,106 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.error('An error occurred while running the bulk summary script:', error);
             res.status(500).json({ error: 'An error occurred while running the bulk summary script' });
           });
-        } else {
-          const file = files[0];
-          const tempFilePath = `public/uploads/${file.filename}.pdf`;
-          const tempOutputPath = `${batchDirectory}${file.filename}.json`;
+        } else if (selectedScript === 'process.py') {
+          const processScriptPath = path.join(scriptsDir, 'process.py');
+          const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
+          const processProcess = spawn(myenvPath, [processScriptPath, batchDirectory, selectedModel]);
 
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Transfer-Encoding': 'chunked',
+          let processOutput = '';
+
+          processProcess.stdout.on('data', (data) => {
+            processOutput += data.toString();
           });
 
-          if (selectedScript === 'process.py') {
-            // Pass the output file path of ocr.py to process.py script
-            const processScriptPath = path.join(scriptsDir, 'process.py');
-            const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
-            const processProcess = spawn(myenvPath, [processScriptPath, tempOutputPath, selectedModel]);
+          processProcess.stderr.on('data', (data) => {
+            console.error('Process script error:', data.toString());
+          });
 
-            let processOutput = '';
+          processProcess.on('close', (code) => {
+            console.log('Process script output:', processOutput);
 
-            processProcess.stdout.on('data', (data) => {
-              processOutput += data.toString();
-            });
-            
-            processProcess.stderr.on('data', (data) => {
-              console.error('Process script error:', data.toString());
-            });
-            
-            processProcess.on('close', (code) => {
-              console.log('Process script output:', processOutput);
-            
-              if (code === 0) {
-                try {
-                  const sentencePagePairs = JSON.parse(processOutput);
-                  if (sentencePagePairs !== null) {
-                    console.log('Parsed sentence-page pairs:', sentencePagePairs);
-                    const pdfFilePath = `uploads/${file.filename}.pdf`;
-                    const responseData = JSON.stringify({ sentencePagePairs, filePath: pdfFilePath });
-                    res.write(responseData);
-                  } else {
-                    console.error('Parsed sentence-page pairs is null');
-                    const errorData = JSON.stringify({ error: 'Parsed sentence-page pairs is null' });
-                    res.write(errorData);
-                  }
-                } catch (error) {
-                  console.error('Error parsing process output:', error);
-                  const errorData = JSON.stringify({ error: 'Error parsing process output', errorDetails: error.message });
-                  res.write(errorData);
+            if (code === 0) {
+              try {
+                const processedResults = JSON.parse(processOutput);
+                res.status(200).json({ results: processedResults });
+              } catch (error) {
+                console.error('Error parsing process output:', error);
+                res.status(500).json({ error: 'Error parsing process output', errorDetails: error.message });
+              }
+            } else {
+              console.error('Process script failed with code:', code);
+              res.status(500).json({ error: 'Process script failed', errorDetails: processOutput });
+            }
+          });
+        } else if (selectedScript === 'toc.py') {
+          const file = files[0];
+          const tempOutputPath = `${batchDirectory}${file.filename}.json`;
+
+          const tocScriptPath = path.join(scriptsDir, 'toc.py');
+          const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
+          const tocProcess = spawn(myenvPath, [tocScriptPath, tempOutputPath]);
+        
+          let tocOutput = '';
+          tocProcess.stdout.on('data', (data) => {
+            tocOutput += data.toString();
+          });
+        
+          tocProcess.stderr.on('data', (data) => {
+            console.error(`TOC script error: ${data}`);
+          });
+        
+          tocProcess.on('close', (code) => {
+            if (code === 0) {
+              try {
+                console.log('TOC output:', tocOutput);
+                const tocData = JSON.parse(tocOutput);
+                console.log('Parsed TOC data:', tocData);
+        
+                // Ensure the structure sent to the client matches expected format
+                if (Array.isArray(tocData)) {
+                  const responseData = {
+                    tocData,
+                    filePath: `uploads/${file.filename}` // Assuming the PDF is accessible via this path
+                  };
+                  res.status(200).json(responseData);
+                } else {
+                  console.error('Invalid TOC data format');
+                  res.status(500).json({ error: 'Invalid TOC data format' });
                 }
-                res.end();
-              } else {
-                console.error('Process script failed with code:', code);
-                const errorData = JSON.stringify({ error: 'Process script failed', errorDetails: processOutput });
-                res.write(errorData);
-                res.end();
+              } catch (error) {
+                console.error('Error parsing TOC output:', error);
+                res.status(500).json({ error: 'Error parsing TOC output', details: error.message });
               }
-            });
-          } else if (selectedScript === 'toc.py') {
-            const tocScriptPath = path.join(scriptsDir, 'toc.py');
-            const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
-            const tocProcess = spawn(myenvPath, [tocScriptPath, tempOutputPath]);
-          
-            let tocOutput = '';
-            tocProcess.stdout.on('data', (data) => {
-              tocOutput += data.toString();
-            });
-          
-            tocProcess.stderr.on('data', (data) => {
-              console.error(`TOC script error: ${data}`);
-            });
-          
-            tocProcess.on('close', (code) => {
-              if (code === 0) {
-                try {
-                  console.log('TOC output:', tocOutput);
-                  const tocData = JSON.parse(tocOutput);
-                  console.log('Parsed TOC data:', tocData);
-          
-                  // Ensure the structure sent to the client matches expected format
-                  if (Array.isArray(tocData)) {
-                    const responseData = {
-                      tocData,
-                      filePath: `uploads/${file.filename}.pdf` // Assuming the PDF is accessible via this path
-                    };
-                    res.status(200).json(responseData);
-                  } else {
-                    console.error('Invalid TOC data format');
-                    res.status(500).json({ error: 'Invalid TOC data format' });
-                  }
-                } catch (error) {
-                  console.error('Error parsing TOC output:', error);
-                  res.status(500).json({ error: 'Error parsing TOC output', details: error.message });
-                }
-              } else {
-                console.error('TOC script failed with code:', code);
-                res.status(500).json({ error: 'TOC script failed' });
-              }
-            });
-          } else if (selectedScript === 'entity.py') {
-            // Pass the output file path of ocr.py to entity.py script
-            const entityScriptPath = path.join(scriptsDir, 'entity.py');
-            const csvOutputPath = `public/uploads/${file.filename}.csv`;
-            const entityProcess = spawn('python3', [entityScriptPath, tempOutputPath, csvOutputPath]);
+            } else {
+              console.error('TOC script failed with code:', code);
+              res.status(500).json({ error: 'TOC script failed' });
+            }
+          });
+        } else if (selectedScript === 'entity.py') {
+          const file = files[0];
+          const tempOutputPath = `${batchDirectory}${file.filename}.json`;
 
-            entityProcess.stderr.on('data', (data) => {
-              console.error(`Entity script error: ${data}`);
-            });
+          // Pass the output file path of ocr.py to entity.py script
+          const entityScriptPath = path.join(scriptsDir, 'entity.py');
+          const csvOutputPath = `public/uploads/${file.filename}.csv`;
+          const entityProcess = spawn('python3', [entityScriptPath, tempOutputPath, csvOutputPath]);
 
-            entityProcess.on('close', (code) => {
-              if (code === 0) {
-                const csvFilePath = `/uploads/${file.filename}.csv`;
-                res.write(JSON.stringify({ csvFilePath }));
-              } else {
-                console.error('Entity script failed with code:', code);
-                res.write(JSON.stringify({ error: 'Entity script failed' }));
-              }
-              res.end();
-            });
-          } else {
-            res.write(JSON.stringify({ error: 'Invalid script selected' }));
+          entityProcess.stderr.on('data', (data) => {
+            console.error(`Entity script error: ${data}`);
+          });
+
+          entityProcess.on('close', (code) => {
+            if (code === 0) {
+              const csvFilePath = `/uploads/${file.filename}.csv`;
+              res.write(JSON.stringify({ csvFilePath }));
+            } else {
+              console.error('Entity script failed with code:', code);
+              res.write(JSON.stringify({ error: 'Entity script failed' }));
+            }
             res.end();
-          }
+          });
+        } else {
+          res.status(400).json({ error: 'Invalid script selected' });
         }
       } catch (error) {
         console.error('OCR script failed:', error);
