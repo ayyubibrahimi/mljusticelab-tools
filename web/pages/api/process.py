@@ -395,8 +395,7 @@ def compare_summaries(groundtruth, summary, selected_model):
     )
 
     return response
-
-def write_json_output(combined_summary, sentence_to_page):
+def write_json_output(combined_summary, sentence_to_page, filename):
     output_data = []
     for sentence in nlp(combined_summary).sents:
         sentence_text = str(sentence).strip()
@@ -410,32 +409,29 @@ def write_json_output(combined_summary, sentence_to_page):
                 "page_number_candidate_2_score": float(page_number_dict["page_number_candidate_2_score"]) if page_number_dict["page_number_candidate_2_score"] is not None else None,
                 "page_number_candidate_3": int(page_number_dict["page_number_candidate_3"]) if page_number_dict["page_number_candidate_3"] is not None else None,
                 "page_number_candidate_3_score": float(page_number_dict["page_number_candidate_3_score"]) if page_number_dict["page_number_candidate_3_score"] is not None else None,
+                "filename": filename
             })
         else:
-            output_data.append({"sentence": sentence_text})
-
+            output_data.append({
+                "sentence": sentence_text,
+                "filename": filename
+            })
     return output_data
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Please provide the path to the directory and the selected model as command-line arguments.")
         sys.exit(1)
-
     input_directory = sys.argv[1]
     selected_model = sys.argv[2]
-
     output_data = []
-
     try:
         for filename in os.listdir(input_directory):
             if filename.endswith(".json"):
                 input_file_path = os.path.join(input_directory, filename)
-
                 docs = load_and_split(input_file_path)
-                # print(docs)
                 query = "Generate a timeline of events based on the police report."
                 page_summaries = generate_timeline(docs, query, selected_model)
-
                 max_iterations = 3
                 iteration = 0
                 while iteration < max_iterations:
@@ -449,23 +445,17 @@ if __name__ == "__main__":
                         comparison_score = int(score_match.group(1))
                     else:
                         comparison_score = int(comparison_score_text.strip())
-
                     if comparison_score >= 8:
-                        output_data.extend(write_json_output(augmented_summary, updated_sentence_to_page))
+                        output_data.extend(write_json_output(augmented_summary, updated_sentence_to_page, filename))
                         break
-
                     iteration += 1
-
                 if iteration == max_iterations:
                     logger.warning("Maximum iterations reached")
-                    output_data.extend(write_json_output(augmented_summary, updated_sentence_to_page))
-
+                    output_data.extend(write_json_output(augmented_summary, updated_sentence_to_page, filename))
         # Convert the output data to JSON string
         json_output = json.dumps(output_data)
-
         # Print the JSON output
         print(json_output, end='')
-
     except Exception as e:
         logger.error(f"Error processing JSON: {str(e)}")
         print(json.dumps({"success": False, "message": "Failed to process JSON"}))

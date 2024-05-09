@@ -75,25 +75,28 @@ const UploadInterface: React.FC = () => {
         console.log('Raw data received from the backend:', data);
   
         if (selectedScript === 'process.py') {
-          let parsedSentencePagePairs;
           if (Array.isArray(data.results)) {
-            // Handle array format
-            parsedSentencePagePairs = data.results;
-            console.log('Parsed sentence-page pairs (array format):', parsedSentencePagePairs);
-          } else if (data.sentencePagePairs) {
-            // Handle JSON string format
-            parsedSentencePagePairs = JSON.parse(data.sentencePagePairs);
-            console.log('Parsed sentence-page pairs (JSON string format):', parsedSentencePagePairs);
+            setDisplayedContent({
+              sentencePagePairs: data.results,
+            });
           } else {
             console.error('Invalid data format for sentence-page pairs');
             setProcessingStatus('idle');
             return;
           }
   
-          setSentencePagePairs(parsedSentencePagePairs);
+          // Group sentence-page pairs by filename
+          const groupedSentencePagePairs = parsedSentencePagePairs.reduce((acc, pair) => {
+            if (!acc[pair.filename]) {
+              acc[pair.filename] = [];
+            }
+            acc[pair.filename].push(pair);
+            return acc;
+          }, {});
+  
           setDisplayedContent({
-            filePath: uploadedFilePath,
-            sentencePagePairs: parsedSentencePagePairs,
+            filePaths: files.map(file => file.name),
+            groupedSentencePagePairs,
           });
         } else if (selectedScript === 'toc.py') {
           setTocData(data.tocData);
@@ -171,52 +174,20 @@ const UploadInterface: React.FC = () => {
   
             {displayedContent && selectedScript === 'process.py' ? (
               <div className={styles.displayedContentArea}>
-                <p>File Path: {displayedContent.filePath}</p>
-                <div ref={outputRef} className={styles.processOutput}>
-                  {displayedContent.sentencePagePairs && Array.isArray(displayedContent.sentencePagePairs) ? (
-                    displayedContent.sentencePagePairs.map((pair, index) => (
-                      <React.Fragment key={index}>
-                        <Tippy
-                          content={
-                            <div className={styles.tippyContent}>
-                              <div className={styles.tippyTitle}>Associated Pages</div>
-                              <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                              {pair.page_number_candidate_2 !== null && (
-                                <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                              )}
-                              {pair.page_number_candidate_3 !== null && (
-                                <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                              )}
-                            </div>
-                          }
-                          theme="custom"
-                          followCursor={true}
-                          plugins={[followCursor]}
-                          className={styles.tippyTooltip}
-                        >
-                          <span
-                            onClick={() => setSelectedPage(pair.page_number)}
-                            className={styles.clickableSentence}
-                          >
-                            {pair.sentence}
-                          </span>
-                        </Tippy>
-                        {(index + 1) % 4 === 0 && <br />}
-                        {(index + 1) % 4 === 0 && <br />}
-                      </React.Fragment>
-                    ))
-                  ) : (
-                    <p>No sentence-page pairs available.</p>
-                  )}
-                </div>
-              </div>
-            ) : displayedSavedResponse ? (
-              <div className={styles.displayedSavedResponseArea}>
-                <p>File Path: {displayedSavedResponse.filePath}</p>
-                <div ref={outputRef} className={styles.processOutput}>
-                  {displayedSavedResponse.sentencePagePairs.map((pair, index) => (
-                    <React.Fragment key={index}>
+                {Object.entries(
+                  displayedContent.sentencePagePairs.reduce((acc, pair) => {
+                    if (!acc[pair.filename]) {
+                      acc[pair.filename] = [];
+                    }
+                    acc[pair.filename].push(pair);
+                    return acc;
+                  }, {})
+                ).map(([filename, fileSentences]) => (
+                  <div key={filename}>
+                    <h3>File: {filename}</h3>
+                    {fileSentences.map((pair, index) => (
                       <Tippy
+                        key={index}
                         content={
                           <div className={styles.tippyContent}>
                             <div className={styles.tippyTitle}>Associated Pages</div>
@@ -241,11 +212,53 @@ const UploadInterface: React.FC = () => {
                           {pair.sentence}
                         </span>
                       </Tippy>
-                      {(index + 1) % 4 === 0 && <br />}
-                      {(index + 1) % 4 === 0 && <br />}
-                    </React.Fragment>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : displayedSavedResponse ? (
+              <div className={styles.displayedSavedResponseArea}>
+                {Object.entries(
+                  displayedSavedResponse.content.sentencePagePairs.reduce((acc, pair) => {
+                    if (!acc[pair.filename]) {
+                      acc[pair.filename] = [];
+                    }
+                    acc[pair.filename].push(pair);
+                    return acc;
+                  }, {})
+                ).map(([filename, fileSentences]) => (
+                  <div key={filename}>
+                    <h3>File: {filename}</h3>
+                    {fileSentences.map((pair, index) => (
+                      <Tippy
+                        key={index}
+                        content={
+                          <div className={styles.tippyContent}>
+                            <div className={styles.tippyTitle}>Associated Pages</div>
+                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                            {pair.page_number_candidate_2 !== null && (
+                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                            )}
+                            {pair.page_number_candidate_3 !== null && (
+                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                            )}
+                          </div>
+                        }
+                        theme="custom"
+                        followCursor={true}
+                        plugins={[followCursor]}
+                        className={styles.tippyTooltip}
+                      >
+                        <span
+                          onClick={() => setSelectedPage(pair.page_number)}
+                          className={styles.clickableSentence}
+                        >
+                          {pair.sentence}
+                        </span>
+                      </Tippy>
+                    ))}
+                  </div>
+                ))}
               </div>
             ) : null}
           </div>
