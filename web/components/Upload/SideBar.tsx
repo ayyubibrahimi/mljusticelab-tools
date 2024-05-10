@@ -5,11 +5,17 @@ interface SidebarProps {
   sentencePagePairs?: { sentence: string; page_number?: number }[];
   tocData?: { sentence: string; page_number?: number }[];
   onPageClick: (pageNumber: number) => void;
-  onSavedResponseClick: (content: any) => void; // Callback function to handle clicking on a saved response
+  onSavedResponseClick: (response: any) => void; // Callback function to handle clicking on a saved response
   savedResponses: { id: number; label: string; content: any }[]; // Array of saved responses
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ sentencePagePairs = [], tocData = [], onPageClick, onSavedResponseClick, savedResponses }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  sentencePagePairs = [],
+  tocData = [],
+  onPageClick,
+  onSavedResponseClick,
+  savedResponses,
+}) => {
   const getPageNumbers = () => {
     const processPageNumbers = sentencePagePairs.map(pair => pair.page_number).filter(Boolean) as number[];
     const tocPageNumbers = tocData.map(item => item.page_number).filter(Boolean) as number[];
@@ -24,7 +30,9 @@ const Sidebar: React.FC<SidebarProps> = ({ sentencePagePairs = [], tocData = [],
       <ul>
         {savedResponses.map(response => (
           <li key={response.id}>
-            <button onClick={() => onSavedResponseClick(response.content)}>{response.label}</button>
+            <button onClick={() => onSavedResponseClick(response)}>
+              {response.label}
+            </button>
           </li>
         ))}
       </ul>

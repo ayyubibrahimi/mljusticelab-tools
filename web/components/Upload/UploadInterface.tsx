@@ -26,6 +26,23 @@ const UploadInterface: React.FC = () => {
   const [savedResponses, setSavedResponses] = useState([]);
   const [displayedContent, setDisplayedContent] = useState(null);
   const [displayedSavedResponse, setDisplayedSavedResponse] = useState(null);
+  const [expandedFiles, setExpandedFiles] = useState({});
+  const [expandedSavedFiles, setExpandedSavedFiles] = useState({});
+
+  const toggleExpanded = (filename) => {
+    setExpandedFiles((prevState) => ({
+      ...prevState,
+      [filename]: !prevState[filename],
+    }));
+  };
+
+  const toggleExpandedSaved = (filename) => {
+    setExpandedSavedFiles((prevState) => ({
+      ...prevState,
+      [filename]: !prevState[filename],
+    }));
+  };
+
 
   useEffect(() => {
     const saved = localStorage.getItem('savedResponses');
@@ -36,8 +53,8 @@ const UploadInterface: React.FC = () => {
     }
   }, []);
 
-  const handleDisplaySavedResponse = (content) => {
-    setDisplayedSavedResponse(content);
+  const handleDisplaySavedResponse = (response) => {
+    setDisplayedSavedResponse(response);
     setDisplayedContent(null); // Clear the displayed content when showing a saved response
   };
 
@@ -46,10 +63,10 @@ const UploadInterface: React.FC = () => {
     const newResponse = {
       id: newResponseId,
       label: `Saved Response ${newResponseId}`,
-      content: {
-        filePath: uploadedFilePath,
-        sentencePagePairs: sentencePagePairs,
-      },
+      content: content ? {
+        sentencePagePairs: content.sentencePagePairs || [],
+        // Add any other necessary properties from the content object
+      } : {},
     };
     const updatedResponses = [...savedResponses, newResponse];
     setSavedResponses(updatedResponses);
@@ -184,81 +201,103 @@ const UploadInterface: React.FC = () => {
                   }, {})
                 ).map(([filename, fileSentences]) => (
                   <div key={filename}>
-                    <h3>File: {filename}</h3>
-                    {fileSentences.map((pair, index) => (
-                      <Tippy
-                        key={index}
-                        content={
-                          <div className={styles.tippyContent}>
-                            <div className={styles.tippyTitle}>Associated Pages</div>
-                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                            {pair.page_number_candidate_2 !== null && (
-                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                            )}
-                            {pair.page_number_candidate_3 !== null && (
-                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                            )}
-                          </div>
-                        }
-                        theme="custom"
-                        followCursor={true}
-                        plugins={[followCursor]}
-                        className={styles.tippyTooltip}
-                      >
-                        <span
-                          onClick={() => setSelectedPage(pair.page_number)}
-                          className={styles.clickableSentence}
-                        >
-                          {pair.sentence}
-                        </span>
-                      </Tippy>
-                    ))}
+                    <button
+                      className={styles.collapsibleButton}
+                      onClick={() => toggleExpanded(filename)}
+                    >
+                      {filename}
+                    </button>
+                    {expandedFiles[filename] && (
+                      <div className={styles.collapsibleContent}>
+                        {fileSentences.map((pair, index) => (
+                          <Tippy
+                            key={index}
+                            content={
+                              <div className={styles.tippyContent}>
+                                <div className={styles.tippyTitle}>Associated Pages</div>
+                                <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                                {pair.page_number_candidate_2 !== null && (
+                                  <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                                )}
+                                {pair.page_number_candidate_3 !== null && (
+                                  <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                                )}
+                              </div>
+                            }
+                            theme="custom"
+                            followCursor={true}
+                            plugins={[followCursor]}
+                            className={styles.tippyTooltip}
+                          >
+                            <span
+                              onClick={() => setSelectedPage(pair.page_number)}
+                              className={styles.clickableSentence}
+                            >
+                              {pair.sentence}
+                            </span>
+                          </Tippy>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            ) : displayedSavedResponse ? (
+            ) : displayedSavedResponse && displayedSavedResponse.content && displayedSavedResponse.content.sentencePagePairs ? (
               <div className={styles.displayedSavedResponseArea}>
-                {Object.entries(
-                  displayedSavedResponse.content.sentencePagePairs.reduce((acc, pair) => {
-                    if (!acc[pair.filename]) {
-                      acc[pair.filename] = [];
-                    }
-                    acc[pair.filename].push(pair);
-                    return acc;
-                  }, {})
-                ).map(([filename, fileSentences]) => (
-                  <div key={filename}>
-                    <h3>File: {filename}</h3>
-                    {fileSentences.map((pair, index) => (
-                      <Tippy
-                        key={index}
-                        content={
-                          <div className={styles.tippyContent}>
-                            <div className={styles.tippyTitle}>Associated Pages</div>
-                            <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                            {pair.page_number_candidate_2 !== null && (
-                              <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                            )}
-                            {pair.page_number_candidate_3 !== null && (
-                              <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                            )}
-                          </div>
-                        }
-                        theme="custom"
-                        followCursor={true}
-                        plugins={[followCursor]}
-                        className={styles.tippyTooltip}
+                {displayedSavedResponse.content.sentencePagePairs.length > 0 ? (
+                  Object.entries(
+                    displayedSavedResponse.content.sentencePagePairs.reduce((acc, pair) => {
+                      if (!acc[pair.filename]) {
+                        acc[pair.filename] = [];
+                      }
+                      acc[pair.filename].push(pair);
+                      return acc;
+                    }, {})
+                  ).map(([filename, fileSentences]) => (
+                    <div key={filename}>
+                      <button
+                        className={styles.collapsibleButton}
+                        onClick={() => toggleExpandedSaved(filename)}
                       >
-                        <span
-                          onClick={() => setSelectedPage(pair.page_number)}
-                          className={styles.clickableSentence}
-                        >
-                          {pair.sentence}
-                        </span>
-                      </Tippy>
-                    ))}
-                  </div>
-                ))}
+                        {filename}
+                      </button>
+                      {expandedSavedFiles[filename] && (
+                        <div className={styles.collapsibleContent}>
+                          {fileSentences.map((pair, index) => (
+                            <Tippy
+                              key={index}
+                              content={
+                                <div className={styles.tippyContent}>
+                                  <div className={styles.tippyTitle}>Associated Pages</div>
+                                  <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                                  {pair.page_number_candidate_2 !== null && (
+                                    <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                                  )}
+                                  {pair.page_number_candidate_3 !== null && (
+                                    <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                                  )}
+                                </div>
+                              }
+                              theme="custom"
+                              followCursor={true}
+                              plugins={[followCursor]}
+                              className={styles.tippyTooltip}
+                            >
+                              <span
+                                onClick={() => setSelectedPage(pair.page_number)}
+                                className={styles.clickableSentence}
+                              >
+                                {pair.sentence}
+                              </span>
+                            </Tippy>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p>No saved response data available.</p>
+                )}
               </div>
             ) : null}
           </div>
