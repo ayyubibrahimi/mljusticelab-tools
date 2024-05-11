@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import styles from './UploadInterface.module.scss';
+import styles from './Fileupload.module.scss';
 
 interface FileUploadProps {
   onFileUpload: (files: File[]) => Promise<any>;
@@ -28,6 +28,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, onSaveOutput, dis
       return;
     }
     setLastUploadedData(null);
+    onClearScreen(); // Call the onClearScreen function before processing new files
     onFileUpload(files)
       .then(data => {
         setLastUploadedData(data);
@@ -59,7 +60,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, onSaveOutput, dis
           type="button"
           onClick={() => onSaveOutput(lastUploadedData)}
           disabled={disabled}
-          className={styles.saveButton}
+          className={styles.fileInputLabel}
         >
           Save Response
         </button>

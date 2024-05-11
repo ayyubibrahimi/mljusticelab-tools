@@ -1,41 +1,69 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styles from './Sidebar.module.scss';
 
-interface SidebarProps {
-  sentencePagePairs?: { sentence: string; page_number?: number }[];
-  tocData?: { sentence: string; page_number?: number }[];
-  onPageClick: (pageNumber: number) => void;
-  onSavedResponseClick: (response: any) => void; // Callback function to handle clicking on a saved response
-  savedResponses: { id: number; label: string; content: any }[]; // Array of saved responses
-}
-
-const Sidebar: React.FC<SidebarProps> = ({
-  sentencePagePairs = [],
-  tocData = [],
+const Sidebar = ({
+  pages,
   onPageClick,
+  sentencePagePairs,
+  tocData,
   onSavedResponseClick,
   savedResponses,
+  onDeleteSavedResponse,
+  onRenameSavedResponse,
 }) => {
-  const getPageNumbers = () => {
-    const processPageNumbers = sentencePagePairs.map(pair => pair.page_number).filter(Boolean) as number[];
-    const tocPageNumbers = tocData.map(item => item.page_number).filter(Boolean) as number[];
-    return [...new Set([...processPageNumbers, ...tocPageNumbers])];
+  const [editingResponseId, setEditingResponseId] = useState(null);
+  const [newLabel, setNewLabel] = useState('');
+
+  const handleRenameClick = (responseId) => {
+    setEditingResponseId(responseId);
+    const response = savedResponses.find((resp) => resp.id === responseId);
+    setNewLabel(response.label);
   };
 
-  const pageNumbers = getPageNumbers();
+  const handleRenameSubmit = (responseId) => {
+    onRenameSavedResponse(responseId, newLabel);
+    setEditingResponseId(null);
+    setNewLabel('');
+  };
 
   return (
     <div className={styles.sidebar}>
-      <h3>Saved Responses</h3>
-      <ul>
-        {savedResponses.map(response => (
-          <li key={response.id}>
-            <button onClick={() => onSavedResponseClick(response)}>
-              {response.label}
-            </button>
-          </li>
+      <div className={styles.savedResponses}>
+        <h3>Saved Responses</h3>
+        {savedResponses.map((response) => (
+          <div key={response.id} className={styles.savedResponse}>
+            {editingResponseId === response.id ? (
+              <div>
+                <input
+                  type="text"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  className={styles.renameInput}
+                />
+                <button
+                  onClick={() => handleRenameSubmit(response.id)}
+                  className={styles.renameButton}
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <div>
+                <button
+                  onClick={() => onSavedResponseClick(response)}
+                  className={styles.responseLabel}
+                >
+                  {response.label}
+                </button>
+                <div className={styles.responseButtons}>
+                  <button onClick={() => handleRenameClick(response.id)}>Rename</button>
+                  <button onClick={() => onDeleteSavedResponse(response.id)}>Delete</button>
+                </div>
+              </div>
+            )}
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 };

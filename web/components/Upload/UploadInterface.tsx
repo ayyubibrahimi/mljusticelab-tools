@@ -28,6 +28,7 @@ const UploadInterface: React.FC = () => {
   const [displayedSavedResponse, setDisplayedSavedResponse] = useState(null);
   const [expandedFiles, setExpandedFiles] = useState({});
   const [expandedSavedFiles, setExpandedSavedFiles] = useState({});
+  const [renderedOutput, setRenderedOutput] = useState(null);
 
   const toggleExpanded = (filename) => {
     setExpandedFiles((prevState) => ({
@@ -44,34 +45,6 @@ const UploadInterface: React.FC = () => {
   };
 
 
-  useEffect(() => {
-    const saved = localStorage.getItem('savedResponses');
-    if (process.env.NODE_ENV === 'development') {
-      localStorage.clear();
-    } else if (saved) {
-      setSavedResponses(JSON.parse(saved));
-    }
-  }, []);
-
-  const handleDisplaySavedResponse = (response) => {
-    setDisplayedSavedResponse(response);
-    setDisplayedContent(null); // Clear the displayed content when showing a saved response
-  };
-
-  const saveResponseToLocalStorage = (content) => {
-    const newResponseId = savedResponses.length + 1;
-    const newResponse = {
-      id: newResponseId,
-      label: `Saved Response ${newResponseId}`,
-      content: content ? {
-        sentencePagePairs: content.sentencePagePairs || [],
-        // Add any other necessary properties from the content object
-      } : {},
-    };
-    const updatedResponses = [...savedResponses, newResponse];
-    setSavedResponses(updatedResponses);
-    localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
-  };
 
   const handleAnalysisClick = (analysis) => {
     setSelectedAnalysis(analysis);
@@ -79,6 +52,9 @@ const UploadInterface: React.FC = () => {
   };
 
   const handleFileUpload = async (files) => {
+
+    handleClearScreen();
+    
     setProcessingStatus('processing');
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
@@ -163,7 +139,121 @@ const UploadInterface: React.FC = () => {
     setDisplayedSavedResponse(null);
     setSelectedAnalysis(null);
     setProcessingStatus('idle');
+    setRenderedOutput(null); // Clear the renderedOutput state
   };
+
+  useEffect(() => {
+    if (displayedContent && selectedScript === 'process.py') {
+      const output = (
+        <div className={styles.displayedContentArea}>
+          {Object.entries(
+            displayedContent.sentencePagePairs.reduce((acc, pair) => {
+              if (!acc[pair.filename]) {
+                acc[pair.filename] = [];
+              }
+              acc[pair.filename].push(pair);
+              return acc;
+            }, {})
+          ).map(([filename, fileSentences]) => (
+            <div key={filename}>
+              <button
+                className={styles.collapsibleButton}
+                onClick={() => {
+                  toggleExpanded(filename);
+                  const savedContent = JSON.parse(localStorage.getItem('displayedContent'));
+                  if (savedContent && savedContent.filename === filename) {
+                    setDisplayedContent(savedContent);
+                  }
+                }}
+              >
+                {filename}
+              </button>
+              {expandedFiles[filename] && (
+                <div className={styles.collapsibleContent}>
+                  {fileSentences.map((pair, index) => (
+                    <Tippy
+                      key={index}
+                      content={
+                        <div className={styles.tippyContent}>
+                          <div className={styles.tippyTitle}>Associated Pages</div>
+                          <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                          {pair.page_number_candidate_2 !== null && (
+                            <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                          )}
+                          {pair.page_number_candidate_3 !== null && (
+                            <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                          )}
+                        </div>
+                      }
+                      theme="custom"
+                      followCursor={true}
+                      plugins={[followCursor]}
+                      className={styles.tippyTooltip}
+                    >
+                      <span
+                        onClick={() => setSelectedPage(pair.page_number)}
+                        className={styles.clickableSentence}
+                      >
+                        {pair.sentence}
+                      </span>
+                    </Tippy>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+      setRenderedOutput(output);
+      localStorage.setItem('displayedContent', JSON.stringify(displayedContent));
+    }
+  }, [displayedContent, selectedScript, expandedFiles]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('savedResponses');
+    if (process.env.NODE_ENV === 'development') {
+      localStorage.clear();
+    } else if (saved) {
+      setSavedResponses(JSON.parse(saved));
+    }
+  }, []);
+
+  const saveResponseToLocalStorage = (content) => {
+    const newResponseId = savedResponses.length + 1;
+    const newResponse = {
+      id: newResponseId,
+      label: `Saved Response ${newResponseId}`,
+      script: selectedScript,
+      content: displayedContent, // Save the displayedContent instead of renderedOutput
+    };
+    const updatedResponses = [...savedResponses, newResponse];
+    setSavedResponses(updatedResponses);
+    localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
+  };
+
+  const handleDisplaySavedResponse = (response) => {
+    setDisplayedSavedResponse(response);
+    setDisplayedContent(response.content); // Set the displayedContent state with the saved content
+  };
+
+
+  const handleRenameSavedResponse = (responseId, newLabel) => {
+    const updatedResponses = savedResponses.map((response) => {
+      if (response.id === responseId) {
+        return { ...response, label: newLabel };
+      }
+      return response;
+    });
+    setSavedResponses(updatedResponses);
+    localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
+  };
+  
+  const handleDeleteSavedResponse = (responseId) => {
+    const updatedResponses = savedResponses.filter((response) => response.id !== responseId);
+    setSavedResponses(updatedResponses);
+    localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
+  };
+
 
   return (
     <div className={styles.container}>
@@ -175,6 +265,8 @@ const UploadInterface: React.FC = () => {
           tocData={tocData}
           onSavedResponseClick={handleDisplaySavedResponse}
           savedResponses={savedResponses}
+          onDeleteSavedResponse={handleDeleteSavedResponse}
+          onRenameSavedResponse={handleRenameSavedResponse}
         />
         <div className={styles.outputContainer}>
           <div className={styles.outputHeader}>
@@ -188,118 +280,15 @@ const UploadInterface: React.FC = () => {
             {processingStatus !== 'completed' && !displayedContent && !displayedSavedResponse && (
               <AnalysisButtons selectedAnalysis={selectedAnalysis} onAnalysisClick={handleAnalysisClick} />
             )}
-  
-            {displayedContent && selectedScript === 'process.py' ? (
-              <div className={styles.displayedContentArea}>
-                {Object.entries(
-                  displayedContent.sentencePagePairs.reduce((acc, pair) => {
-                    if (!acc[pair.filename]) {
-                      acc[pair.filename] = [];
-                    }
-                    acc[pair.filename].push(pair);
-                    return acc;
-                  }, {})
-                ).map(([filename, fileSentences]) => (
-                  <div key={filename}>
-                    <button
-                      className={styles.collapsibleButton}
-                      onClick={() => toggleExpanded(filename)}
-                    >
-                      {filename}
-                    </button>
-                    {expandedFiles[filename] && (
-                      <div className={styles.collapsibleContent}>
-                        {fileSentences.map((pair, index) => (
-                          <Tippy
-                            key={index}
-                            content={
-                              <div className={styles.tippyContent}>
-                                <div className={styles.tippyTitle}>Associated Pages</div>
-                                <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                                {pair.page_number_candidate_2 !== null && (
-                                  <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                                )}
-                                {pair.page_number_candidate_3 !== null && (
-                                  <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                                )}
-                              </div>
-                            }
-                            theme="custom"
-                            followCursor={true}
-                            plugins={[followCursor]}
-                            className={styles.tippyTooltip}
-                          >
-                            <span
-                              onClick={() => setSelectedPage(pair.page_number)}
-                              className={styles.clickableSentence}
-                            >
-                              {pair.sentence}
-                            </span>
-                          </Tippy>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : displayedSavedResponse && displayedSavedResponse.content && displayedSavedResponse.content.sentencePagePairs ? (
-              <div className={styles.displayedSavedResponseArea}>
-                {displayedSavedResponse.content.sentencePagePairs.length > 0 ? (
-                  Object.entries(
-                    displayedSavedResponse.content.sentencePagePairs.reduce((acc, pair) => {
-                      if (!acc[pair.filename]) {
-                        acc[pair.filename] = [];
-                      }
-                      acc[pair.filename].push(pair);
-                      return acc;
-                    }, {})
-                  ).map(([filename, fileSentences]) => (
-                    <div key={filename}>
-                      <button
-                        className={styles.collapsibleButton}
-                        onClick={() => toggleExpandedSaved(filename)}
-                      >
-                        {filename}
-                      </button>
-                      {expandedSavedFiles[filename] && (
-                        <div className={styles.collapsibleContent}>
-                          {fileSentences.map((pair, index) => (
-                            <Tippy
-                              key={index}
-                              content={
-                                <div className={styles.tippyContent}>
-                                  <div className={styles.tippyTitle}>Associated Pages</div>
-                                  <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
-                                  {pair.page_number_candidate_2 !== null && (
-                                    <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
-                                  )}
-                                  {pair.page_number_candidate_3 !== null && (
-                                    <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
-                                  )}
-                                </div>
-                              }
-                              theme="custom"
-                              followCursor={true}
-                              plugins={[followCursor]}
-                              className={styles.tippyTooltip}
-                            >
-                              <span
-                                onClick={() => setSelectedPage(pair.page_number)}
-                                className={styles.clickableSentence}
-                              >
-                                {pair.sentence}
-                              </span>
-                            </Tippy>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p>No saved response data available.</p>
-                )}
-              </div>
-            ) : null}
+            
+            {renderedOutput}
+    
+            {displayedSavedResponse && displayedSavedResponse.renderedOutput && (
+              <div
+                className={styles.displayedSavedResponseArea}
+                dangerouslySetInnerHTML={{ __html: displayedSavedResponse.renderedOutput }}
+              />
+            )}
           </div>
           <div className={styles.uploadSection}>
             <FileUpload
