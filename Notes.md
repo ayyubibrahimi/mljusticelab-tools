@@ -7,6 +7,7 @@
 **5.** Add option to classify docs 
 **6.** Add option to adjust prompt
 **7.** explore the 10-15 page window. Can we go larger or smaller? And does it work for osm
+**8.** create the option for the user to adjust the summary prompt. Based on the changes made to the summary prompt, use a team of agents to adjust the other prompts, namely the combine and coherence templates. 
 
 **Quantitative metrics**
 - BLEU, the simplest metric, calculates the degree of overlap between the reference and generated texts by considering 1- to 4-gram sequences;
@@ -25,3 +26,4 @@
 
 **summary**
 1. Process in batches. Can we disregard certain batches based on whether it contains relevant info when compared to the memory log?
+
