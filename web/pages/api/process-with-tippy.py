@@ -330,6 +330,33 @@ Summary of Summaries:
 """
 
 
+def cross_reference_summaries(groundtruth, summary, summaries, selected_model):
+    if selected_model == "gpt-4-0125-preview":
+        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
+    elif selected_model == "gpt-3.5-0125":
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
+    elif selected_model == "claude-3-haiku-20240307":
+        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
+    elif selected_model == "claude-3-sonnet-20240229":
+        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
+    else:
+        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
+
+    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
+    response_chain = prompt_response | llm | StrOutputParser()
+
+    response = response_chain.invoke(
+        {"groundtruth": groundtruth, "summary_of_summaries": summary}
+    )
+
+    # print("Augmented Summary:", response)
+
+    augmented_summary = {"page_content": response}
+    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
+    # print("Updated Sentence to Page Mapping:", sentence_to_page)
+
+    return response, sentence_to_page
+
 
 comparison_template = """
 As an AI assistant, 
@@ -368,36 +395,6 @@ def compare_summaries(groundtruth, summary, selected_model):
     )
 
     return response
-
-
-def cross_reference_summaries(groundtruth, summary, summaries, selected_model):
-    if selected_model == "gpt-4-0125-preview":
-        llm = ChatOpenAI(model_name="gpt-4-0125-preview")
-    elif selected_model == "gpt-3.5-0125":
-        llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    elif selected_model == "claude-3-haiku-20240307":
-        llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
-    elif selected_model == "claude-3-sonnet-20240229":
-        llm = ChatAnthropic(model_name="claude-3-sonnet-20240229")
-    else:
-        llm = ChatAnthropic(model_name="claude-3-opus-20240229")
-
-    prompt_response = ChatPromptTemplate.from_template(cross_reference_template)
-    response_chain = prompt_response | llm | StrOutputParser()
-
-    response = response_chain.invoke(
-        {"groundtruth": groundtruth, "summary_of_summaries": summary}
-    )
-
-    # print("Augmented Summary:", response)
-
-    augmented_summary = {"page_content": response}
-    sentence_to_page = map_sentences_to_pages(augmented_summary, summaries)
-    # print("Updated Sentence to Page Mapping:", sentence_to_page)
-
-    return response, sentence_to_page
-
-
 def write_json_output(combined_summary, sentence_to_page, filename):
     output_data = []
     for sentence in nlp(combined_summary).sents:
@@ -406,6 +403,12 @@ def write_json_output(combined_summary, sentence_to_page, filename):
         if page_number_dict:
             output_data.append({
                 "sentence": sentence_text,
+                "page_number": int(page_number_dict["page_number"]),
+                "page_number_score": float(page_number_dict["page_number_score"]),
+                "page_number_candidate_2": int(page_number_dict["page_number_candidate_2"]) if page_number_dict["page_number_candidate_2"] is not None else None,
+                "page_number_candidate_2_score": float(page_number_dict["page_number_candidate_2_score"]) if page_number_dict["page_number_candidate_2_score"] is not None else None,
+                "page_number_candidate_3": int(page_number_dict["page_number_candidate_3"]) if page_number_dict["page_number_candidate_3"] is not None else None,
+                "page_number_candidate_3_score": float(page_number_dict["page_number_candidate_3_score"]) if page_number_dict["page_number_candidate_3_score"] is not None else None,
                 "filename": filename
             })
         else:
@@ -414,7 +417,6 @@ def write_json_output(combined_summary, sentence_to_page, filename):
                 "filename": filename
             })
     return output_data
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -450,7 +452,6 @@ if __name__ == "__main__":
                 if iteration == max_iterations:
                     logger.warning("Maximum iterations reached")
                     output_data.extend(write_json_output(augmented_summary, updated_sentence_to_page, filename))
-
         # Convert the output data to JSON string
         json_output = json.dumps(output_data)
         # Print the JSON output

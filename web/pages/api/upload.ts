@@ -68,48 +68,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         await Promise.all(ocrPromises);
 
-        if (selectedScript === 'bulk_summary.py') {
-          const bulkSummaryScriptPath = path.join(scriptsDir, 'bulk_summary.py');
-          const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
-          const bulkSummaryProcess = spawn(myenvPath, [bulkSummaryScriptPath, batchDirectory, selectedModel]);
-          let bulkSummaryOutput = '';
-        
-          bulkSummaryProcess.stdout.on('data', (data) => {
-            bulkSummaryOutput += data.toString();
-            console.log('Bulk summary script output:', data.toString());
-          });
-        
-          bulkSummaryProcess.stderr.on('data', (data) => {
-            console.error('Bulk summary script error:', data.toString());
-          });
-        
-          bulkSummaryProcess.on('close', (code) => {
-            if (code === 0) {
-              try {
-                const parsedOutput = JSON.parse(bulkSummaryOutput);
-                const { summaries } = parsedOutput;
-                const summariesWithFilenames = summaries.map((summary, index) => ({
-                  filename: files[index].originalname, // Add the original filename here
-                  summary: summary.summary,
-                  total_pages: summary.total_pages,
-                }));
-                res.status(200).json({ summaries: summariesWithFilenames });
-              } catch (error) {
-                console.error('Error parsing bulk summary output:', error);
-                res.status(500).json({ error: 'Error parsing bulk summary output' });
-              }
-            } else {
-              console.error('Bulk summary script failed with code:', code);
-              res.status(500).json({ error: 'Bulk summary script failed' });
-            }
-          });
-        
-          bulkSummaryProcess.on('error', (error) => {
-            console.error('An error occurred while running the bulk summary script:', error);
-            res.status(500).json({ error: 'An error occurred while running the bulk summary script' });
-          });
-        } else if (selectedScript === 'process.py') {
-          const processScriptPath = path.join(scriptsDir, 'process.py');
+        if (selectedScript === 'process.py' || selectedScript === 'process-brief.py') {
+          const processScriptPath = path.join(scriptsDir, selectedScript);
           const myenvPath = path.join(scriptsDir, 'myenv', 'bin', 'python3');
           const processProcess = spawn(myenvPath, [processScriptPath, batchDirectory, selectedModel]);
 

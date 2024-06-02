@@ -3,6 +3,9 @@ import FileUpload from './FileUpload';
 import styles from './UploadInterface.module.scss';
 import Sidebar from './Sidebar';
 import PopupBox from './PopupBox';
+import Tippy from '@tippyjs/react';
+import 'tippy.js/dist/tippy.css';
+import { followCursor } from 'tippy.js';
 import ScriptDropdown from './ScriptDropdown';
 import ModelDropdown from './ModelDropdown';
 import AnalysisButtons from './AnalysisButtons';
@@ -19,6 +22,7 @@ const UploadInterface: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [selectedScript, setSelectedScript] = useState('process.py');
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+  const [bulkSummary, setBulkSummary] = useState([]);
   const [savedResponses, setSavedResponses] = useState([]);
   const [displayedContent, setDisplayedContent] = useState<{ sentencePagePairs: any[] } | null>(null);
   const [displayedSavedResponse, setDisplayedSavedResponse] = useState(null);
@@ -45,11 +49,6 @@ const UploadInterface: React.FC = () => {
     setSelectedScript(analysis);
   };
 
-  const handlePageClick = (pageNumber, filename) => {
-    const filePath = uploadedFilePath.find(file => file.filename === filename)?.path || null;
-    setSelectedPage({ pageNumber, filePath });
-  };
-
   const handleFileUpload = async (files) => {
     handleClearScreen();
   
@@ -67,12 +66,12 @@ const UploadInterface: React.FC = () => {
   
         // Store the original PDF file paths
         const uploadedFilePaths = files.map((file, index) => ({
-          filename: file.name,
-          path: `public/uploads/${file.name}`,
+          filename: file.originalname,
+          path: `public/uploads/${file.filename}.pdf`,
         }));
         setUploadedFilePath(uploadedFilePaths);
   
-        if (selectedScript === 'process.py' || selectedScript === 'process-brief.py') {
+        if (selectedScript === 'process.py') {
           if (Array.isArray(data.results)) {
             setDisplayedContent({
               sentencePagePairs: data.results,
@@ -99,6 +98,8 @@ const UploadInterface: React.FC = () => {
           setTocData(data.tocData);
         } else if (selectedScript === 'entity.py') {
           setCsvFilePath(data.csvFilePath);
+        } else if (selectedScript === 'bulk_summary.py') {
+          setBulkSummary(data.summaries);
         }
         setDisplayedSavedResponse(null); // Clear the displayed saved response
         setProcessingStatus('completed');
@@ -111,12 +112,32 @@ const UploadInterface: React.FC = () => {
       setProcessingStatus('idle');
     }
   };
+  
+
+  const handlePageClick = (pageNumber, filename) => {
+    const filePath = uploadedFilePath.find(file => file.filename === filename)?.path || null;
+    setSelectedPage({ pageNumber, filePath });
+  };
 
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   }, [sentencePagePairs, pdfPages, tocData]);
+
+  const uniquePageNumbers = sentencePagePairs && Array.isArray(sentencePagePairs)
+    ? [
+        ...new Set(
+          sentencePagePairs
+            .flatMap(pair => [
+              pair.page_number,
+              pair.page_number_candidate_2,
+              pair.page_number_candidate_3,
+            ])
+            .filter(Boolean)
+        ),
+      ]
+    : [];
 
   const handleClearScreen = () => {
     setDisplayedContent(null);
@@ -127,7 +148,7 @@ const UploadInterface: React.FC = () => {
   };
 
   useEffect(() => {
-    if (displayedContent && (selectedScript === 'process.py' || selectedScript === 'process-brief.py')) {
+    if (displayedContent && selectedScript === 'process.py') {
       const output = (
         <div className={styles.displayedContentArea}>
           {Object.entries(
@@ -149,10 +170,32 @@ const UploadInterface: React.FC = () => {
               {expandedFiles[filename] && (
                 <div className={styles.collapsibleContent}>
                   {fileSentences.map((pair, index) => (
-                      <span key={index} style={{ display: 'block', marginBottom: '10px' }}>
-
-                      {pair.sentence}
-                    </span>
+                    <Tippy
+                      key={index}
+                      content={
+                        <div className={styles.tippyContent}>
+                          <div className={styles.tippyTitle}>Associated Pages</div>
+                          <p>Page {pair.page_number} (Score: {pair.page_number_score.toFixed(2)})</p>
+                          {pair.page_number_candidate_2 !== null && (
+                            <p>Page {pair.page_number_candidate_2} (Score: {pair.page_number_candidate_2_score.toFixed(2)})</p>
+                          )}
+                          {pair.page_number_candidate_3 !== null && (
+                            <p>Page {pair.page_number_candidate_3} (Score: {pair.page_number_candidate_3_score.toFixed(2)})</p>
+                          )}
+                        </div>
+                      }
+                      theme="custom"
+                      followCursor={true}
+                      plugins={[followCursor]}
+                      className={styles.tippyTooltip}
+                    >
+                      <span
+                        onClick={() => handlePageClick(pair.page_number, pair.filename)}
+                        className={styles.clickableSentence}
+                      >
+                        {pair.sentence}
+                      </span>
+                    </Tippy>
                   ))}
                 </div>
               )}
@@ -209,20 +252,6 @@ const UploadInterface: React.FC = () => {
     localStorage.setItem('savedResponses', JSON.stringify(updatedResponses));
   };
 
-  const uniquePageNumbers = sentencePagePairs && Array.isArray(sentencePagePairs)
-  ? [
-      ...new Set(
-        sentencePagePairs
-          .flatMap(pair => [
-            pair.page_number,
-            pair.page_number_candidate_2,
-            pair.page_number_candidate_3,
-          ])
-          .filter(Boolean)
-      ),
-    ]
-  : [];
-
   return (
     <div className={styles.container}>
       <div className={styles.contentContainer}>
@@ -270,8 +299,8 @@ const UploadInterface: React.FC = () => {
         </div>
       </div>
       {selectedPage && (
-        <PopupBox pageNumber={selectedPage.pageNumber} onClose={() => setSelectedPage(null)} filePath={selectedPage.filePath} />
-      )}
+      <PopupBox pageNumber={selectedPage.pageNumber} onClose={() => setSelectedPage(null)} filePath={selectedPage.filePath} />
+    )}
     </div>
   );
 };

@@ -3,8 +3,8 @@ import classNames from 'classnames';
 import styles from './UploadInterface.module.scss';
 
 interface AnalysisButtonsProps {
-  selectedAnalysis: 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py' | null;
-  onAnalysisClick: (analysis: 'process.py' | 'toc.py' | 'entity.py' | 'bulk_summary.py') => void;
+  selectedAnalysis: 'process.py' | 'toc.py' | 'entity.py' | 'process-brief.py' | null;
+  onAnalysisClick: (analysis: 'process.py' | 'toc.py' | 'entity.py' | 'process-brief.py') => void;
 }
 
 const AnalysisButtons: React.FC<AnalysisButtonsProps> = ({ selectedAnalysis, onAnalysisClick }) => {
@@ -14,7 +14,7 @@ const AnalysisButtons: React.FC<AnalysisButtonsProps> = ({ selectedAnalysis, onA
         className={classNames(styles.analysisButton, selectedAnalysis === 'process.py' && styles.selected)}
         onClick={() => onAnalysisClick('process.py')}
       >
-        Generate Summary
+        Generate Long Summary
       </button>
       <button
         className={classNames(styles.analysisButton, selectedAnalysis === 'toc.py' && styles.selected)}
@@ -29,10 +29,10 @@ const AnalysisButtons: React.FC<AnalysisButtonsProps> = ({ selectedAnalysis, onA
         Extract Entities
       </button>
       <button
-        className={classNames(styles.analysisButton, selectedAnalysis === 'bulk_summary.py' && styles.selected)}
-        onClick={() => onAnalysisClick('bulk_summary.py')}
+        className={classNames(styles.analysisButton, selectedAnalysis === 'process-brief.py' && styles.selected)}
+        onClick={() => onAnalysisClick('process-brief.py')}
       >
-        Bulk Summary
+        Generate Brief Summary
       </button>
     </div>
   );

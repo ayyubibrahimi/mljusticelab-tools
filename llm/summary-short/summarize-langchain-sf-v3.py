@@ -42,15 +42,16 @@ logger = logging.getLogger(__name__)
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-model_name = "HuggingFaceH4/zephyr-7b-beta"
+model_name = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
 bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_use_double_quant=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.bfloat16,
+    load_in_8bit=False,
+    bnb_8bit_use_double_quant=True,
+    bnb_8bit_quant_type="nf4",
+    bnb_8bit_compute_dtype=torch.bfloat16,
 )
 model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=bnb_config)
+
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 
