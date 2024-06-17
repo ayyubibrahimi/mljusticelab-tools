@@ -8,7 +8,8 @@ def filter_pages(classification_json, ocr_results, excluded_types):
     excluded_pages = {classification['page_number'] for classification in classification_json['messages'] if classification['type'] in excluded_types}
     filtered_ocr_results = {
         "messages": [
-            page for page in ocr_results['messages'] if page['page_number'] not in excluded_pages
+            {**page, 'page_content': ''} if page['page_number'] in excluded_pages else page
+            for page in ocr_results['messages']
         ]
     }
     return filtered_ocr_results
@@ -19,14 +20,14 @@ def main():
     logger.setLevel(logging.INFO)
     azurelogger.setLevel(logging.ERROR)
 
-    input_directory = "../data/input/bias-2010-2014"
+    input_directory = "../data/input/test"
     output_directory_classify = "../data/output/classify"
     output_directory_ocr = "../data/output/ocr"
 
     endpoint, key = getcreds()
     client = DocClient(endpoint, key)
 
-    excluded_types = ['picture', 'blank page', 'unknown']
+    excluded_types = ['picture','0']
 
     for root, dirs, files in os.walk(input_directory):
         pdf_files = [f for f in files if f.lower().endswith('.pdf')]
@@ -50,6 +51,7 @@ def main():
 
             # Run classification using classify.py
             classification_json = classify_process_pdf(file_path)
+
 
             if classification_json is None:
                 logging.info(f"Skipped {file_path} due to high percentage of excluded pages")
