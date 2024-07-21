@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from classify import process_pdf as classify_process_pdf
-from ocr import DocClient, update_page_keys_in_json, reformat_json_structure, getcreds
+from ocr_headers_optimized import DocClient, update_page_keys_in_json, reformat_json_structure, getcreds
 
 def filter_pages(classification_json, ocr_results, excluded_types):
     excluded_pages = {classification['page_number'] for classification in classification_json['messages'] if classification['type'] in excluded_types}
@@ -20,8 +20,8 @@ def main():
     logger.setLevel(logging.INFO)
     azurelogger.setLevel(logging.ERROR)
 
-    input_directory = "../data/input/test"
-    output_directory_classify = "../data/output/classify"
+    input_directory = "../data/input/bias-2010-2014"
+    output_directory_classify = "../data/output/classify/bias-2010-2014"
     output_directory_ocr = "../data/output/ocr"
 
     endpoint, key = getcreds()
@@ -49,24 +49,37 @@ def main():
                 logging.info(f"Skipping already processed file: {file_path}")
                 continue
 
-            # Run classification using classify.py
-            classification_json = classify_process_pdf(file_path)
+            # Check if classification has already been done
+            if os.path.exists(classify_output_path):
+                logging.info(f"Classification already done for {file_path}. Loading existing results.")
+                with open(classify_output_path, 'r') as f:
+                    classification_json = json.load(f)
+            else:
+                # Run classification using classify.py
+                classification_json = classify_process_pdf(file_path)
 
+                if classification_json is None:
+                    logging.info(f"Skipped {file_path} due to high percentage of excluded pages")
+                    continue
 
-            if classification_json is None:
-                logging.info(f"Skipped {file_path} due to high percentage of excluded pages")
-                continue
+                # Save classification results to JSON
+                with open(classify_output_path, 'w') as f:
+                    json.dump(classification_json, f, indent=4)
 
-            # Save classification results to JSON
-            with open(classify_output_path, 'w') as f:
-                json.dump(classification_json, f, indent=4)
+            # Check if OCR has already been done
+            if os.path.exists(ocr_output_path):
+                logging.info(f"OCR already done for {file_path}. Loading existing results.")
+                with open(ocr_output_path, 'r') as f:
+                    ocr_results = json.load(f)
+            else:
+                # Perform OCR using ocr.py on all pages
+                json_file_path = client.process(file_path, output_subdir_ocr)
 
-            # Perform OCR using ocr.py on all pages
-            json_file_path = client.process(file_path, output_subdir_ocr)
+                # Load OCR results
+                with open(json_file_path, 'r') as f:
+                    ocr_results = json.load(f)
 
             # Filter out unwanted pages from OCR results based on classification
-            with open(json_file_path, 'r') as f:
-                ocr_results = json.load(f)
             filtered_ocr_results = filter_pages(classification_json, ocr_results, excluded_types)
 
             # Save filtered OCR results to a new JSON file
