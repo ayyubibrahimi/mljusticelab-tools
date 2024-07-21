@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
+llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="", temperature=0)
 
 
 nlp = spacy.load("en_core_web_lg")
