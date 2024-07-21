@@ -46,7 +46,7 @@ ner_pipeline = pipeline(
 sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 llm = ChatTogether(
-    together_api_key="a5863c9cedee8fba7514b07a02e64d91eea3958317dc15b5766163a300276483",
+    together_api_key="",
     model="mistralai/Mistral-7B-Instruct-v0.3",
 )
 
@@ -284,9 +284,9 @@ Case Status:
 
 
 def update_memory_log(memory_log, new_summary):
-    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
+    # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="")
 
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="", temperature=0)
 
 
     memory_log_prompt = ChatPromptTemplate.from_template(memory_log_template)
@@ -579,7 +579,7 @@ Case Status:
 """
 
 def format_and_improve_summary(bulletpoint_summary, summaries, memory_log):
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="", temperature=0)
     
     # Format bulletpoint summary into coherent narrative
     prompt_response = ChatPromptTemplate.from_template(coherence_template)
@@ -779,7 +779,7 @@ Updated Summary:
 """
 
 def combine_final_summaries(summaries, memory_log):
-    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
+    # llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="", temperature=0)
 
     combine_prompt_template = ChatPromptTemplate.from_template(final_combine_template)
     combine_chain = combine_prompt_template | llm | StrOutputParser()

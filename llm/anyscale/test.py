@@ -6,7 +6,7 @@ from threading import Thread
 import sys
 
 INPUTMARKER_END = "-- END --"
-ANYSCALE_ENDPOINT_TOKEN = "esecret_bjali57lxu3kl5v42fc92jvukz"
+ANYSCALE_ENDPOINT_TOKEN = ""
 
 class LangchainChatAgent():
 

@@ -19,7 +19,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import os
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = ""
 
 
 logging.basicConfig(
@@ -123,7 +123,7 @@ Chronological Event Summary:
 
 
 def generate_timeline(docs, query, similarity_threshold=0.2):
-    HUGGINGFACEHUB_API_TOKEN = "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"
+    HUGGINGFACEHUB_API_TOKEN = ""
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
     llm = HuggingFaceEndpoint(

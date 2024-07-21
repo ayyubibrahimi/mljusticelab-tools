@@ -13,7 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 import nltk
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+from nltk.stem import api_key
 from langchain_anthropic import ChatAnthropic
 import multiprocessing
 
@@ -136,7 +136,7 @@ Chronological Summary:
 
 
 def process_page(docs, i, query, window_size):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
 

@@ -134,7 +134,7 @@ def generate_timeline(docs, query, window_size=500, similarity_threshold=0.2):
     # llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
     # llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
 
-    HUGGINGFACEHUB_API_TOKEN = "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"
+    HUGGINGFACEHUB_API_TOKEN = ""
     # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
     repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 

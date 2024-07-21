@@ -19,7 +19,7 @@ import csv
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+os.environ["HUGGINGFACEHUB_API_TOKEN"] = ""
 
 
 # nltk.download('stopwords')

@@ -136,7 +136,7 @@ Chronological Summary:
 
 
 def process_page(docs, i, query, window_size):
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="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")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125", api_key="")
     prompt_response = ChatPromptTemplate.from_template(summary_template)
     response_chain = prompt_response | llm | StrOutputParser()
 
@@ -416,7 +416,7 @@ Return Memory Log:
 
 def update_memory_log(memory_log, new_summary):
     llm = ChatOpenAI(model_name="gpt-3.5-turbo-0125")
-    llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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")
+    llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="")
     memory_log_prompt = ChatPromptTemplate.from_template(memory_log_template)
     memory_log_chain = memory_log_prompt | llm | StrOutputParser()
 

@@ -105,29 +105,75 @@ def load_and_split(json_path):
 #### difference is that we're asking the model to preserve the original language 
 
 summary_template = """
-As an AI assistant, your task is to generate a concise and chronological summary of the events described in the provided police report excerpt. Use your understanding of the context and the following guidelines to create an accurate timeline:
+<task_description>
+As a Legal Clerk, your task is to generate a comprehensive, bulletpoint summary of all the important information contained in the provided document excerpt. Extract all the key details presented in the current page, using the context from the memory log and surrounding pages when necessary for clarity or relevance.
+</task_description>
 
-- Identify and extract key events, such as incidents, arrests, witness statements, and evidence collection. 
-- Determine the sequence of events based on the information provided, paying attention to temporal indicators like dates, times, and phrases such as "before", "after", and "during".
-- Organize the events in true chronological order, based on when they actually occurred, rather than from the perspective of the writer or any individual involved.
-- Use clear and concise language to describe each event in the timeline.
-- Do not infer any details that are not explicitly stated. If the text is too poorly OCR'd to derive an event, ignore this piece of the report.
-- Give preference to using the exact phrases and sentences from the original text. Only paraphrase or modify the language when absolutely necessary for coherence or to resolve inconsistencies.
+<guidelines>
+1. Extract all essential information from the current page.
+2. Support the extracted data with additional context from the memory log and surrounding pages to enhance the understanding or relevance of the information in the current page.
+3. Use the memory log to help you understand what is relevant and what is irrelevant.
+4. DO NOT include any details not explicitly stated in any of the documents.
+5. Present the summary in a bullet point format, using subheadings to organize distinct aspects of the information.
+</guidelines>
 
-Given the context from the previous page ending, the current page, and the next page beginning, generate a summary of the events in chronological order using bullet points.
+<essential_information>
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
 
-Example:
-- [Bullet point 1]
-- [Bullet point 2]
-- [Bullet point 3]
-- [Bullet point 4]
-- [Bullet point 5]
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
+b. Primary parties involved (full names, roles, badge numbers if applicable)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
+e. Main findings or decisions
+f. Significant evidence or testimonies
+g. Important outcomes or rulings
+h. Current status of the matter
+i. Any pending actions or future proceedings
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
 
-Previous Page Ending: {previous_page_ending}
-Current Page: {current_page}
-Next Page Beginning: {next_page_beginning}
+For each type of essential information classification, be specific when referring to people, places, and dates. 
+</essential_information>
 
-Chronological Summary:
+<thinking_process>
+Before summarizing, consider:
+1. What are the main topics on this page?
+2. How does the information relate to previous pages?
+3. What context from the memory log is relevant?
+</thinking_process>
+
+<output_format>
+Present the summary using the following structure:
+- Main topic 1
+  • Subtopic 1.1
+  • Subtopic 1.2
+- Main topic 2
+  • Subtopic 2.1
+  • Subtopic 2.2
+</output_format>
+
+<warnings>
+- Do not include speculative information
+- Avoid summarizing irrelevant details
+- Do not draw conclusions not explicitly stated in the text
+</warnings>
+
+<reference_materials>
+## Previous Page Ending ##
+{previous_page_ending}
+
+## Next Page Beginning ##
+{next_page_beginning}
+
+## Current Page ##
+{current_page}
+</reference_materials>
+
+<output_instruction>
+Generate the current page summary below:
+</output_instruction>
 """
 
 
@@ -152,7 +198,6 @@ def process_page(docs, i, query, window_size):
     if current_page:
         processed_content = response_chain.invoke(
             {
-                "question": query,
                 "previous_page_ending": previous_page_ending,
                 "current_page": current_page,
                 "next_page_beginning": next_page_beginning,
@@ -172,79 +217,156 @@ def generate_summaries(docs, query, window_size=500):
 
     return results
 
+
 combine_template = """
-As an AI assistant, your task is to combine the provided summaries of a police report into a single, comprehensive, and chronological summary. Please follow these guidelines:
+<task_description>
+As a Legal Clerk, your task is to concatenate the provided page summaries into a single, comprehensive, and well-organized summary for the given section of the police report. Your goal is to create the best possible summary by taking the most important and relevant information from each provided summary and combining them into a detailed, chronological, and coherent summary without any duplication.
+</task_description>
 
-1. Carefully review the summaries to identify and include all relevant information, such as:
-    - Names and roles of the main police officers involved in the case
-    - The specific allegations of misconduct against the officers
-    - Key events and actions taken during the investigation of the allegations
-    - Important details about the evidence, witness statements, and findings related to the allegations
-    - The outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
+<guidelines>
+1. Comprehensive Information Integration:
+   • Review the the summaries to extract the most important information that is relevant to producing a summary.
 
-2. Organize the information in a clear and logical timeline, ensuring that the sequence of events is accurately represented.
+2. Handling Contradictions:
+   • If inconsistencies arise between the summaries, prioritize the most detailed and specific information.
+   • If the information is incomplete, do not include it.
 
-3. Maintain a coherent narrative flow throughout the combined summary, linking related events and details to provide a comprehensive overview of the case.
+3. Factual Accuracy:
+   • DO NOT include any details not explicitly stated in either summary.
 
-4. When combining information from multiple summaries, give preference to using the exact phrases and sentences from the original text. Only paraphrase or modify the language when absolutely necessary for coherence or to resolve inconsistencies.
+4. Formatting for Clarity:
+   • Ensure that the combined summary is formatted as bullet points with a logical flow of information.
+   • If possible, organize the bullet points chronologically.
+</guidelines>
 
-5. Ensure that all critical information from the individual summaries is included in the final combined summary, without omitting any significant details.
+<essential_information>
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
 
-6. Aim to create a detailed and informative summary that captures the full scope of the case from the raw document using bulletpoints. 
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
+b. Primary parties involved (full names, roles, badge numbers if applicable)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
+e. Main findings or decisions
+f. Significant evidence or testimonies
+g. Important outcomes or rulings
+h. Current status of the matter
+i. Any pending actions or future proceedings
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
 
-7. Identify and resolve any inconsistencies or contradictions between the summaries by cross-checking information and giving preference to the most coherent and logically consistent details.
+For each type of essential information classification, be specific when referring to people, places, and dates. 
+</essential_information>
 
-The updated summary should follow a bulletpoint format, for example:
+<thinking_process>
+Before combining the summaries, consider:
+1. What are the main topics covered across all summaries?
+2. How can the information be organized chronologically?
+3. Are there any contradictions or inconsistencies between summaries?
+4. What information from the memory log provides crucial context?
+5. How can I ensure all essential information is included without duplication?
+</thinking_process>
 
-- Point 1
-- Point 2
-- Point 3
+<warnings>
+- Do not include speculative information
+- Avoid summarizing irrelevant details
+- Do not draw conclusions not explicitly stated in the summaries
+- Do not omit critical information even if it appears in multiple summaries
+- Ensure that all information is accurately attributed to the correct parties and events
+</warnings>
 
-Summary 1: {summary1}
-Summary 2: {summary2}
+<reference_materials>
+Summary 1: 
+{summary1}
 
-Combined Summary:
+Summary 2: 
+{summary2}
+</reference_materials>
+
+<output_instruction>
+Generate the combined summary below, ensuring it adheres to all guidelines, includes all essential information, and is presented in a clear, bullet-point format:
+</output_instruction>
 """
 
-
 verification_template = """
-Please carefully review the combined summary, which is a merged version of two individual summaries (summary1 and summary2) of a police investigative report. The combined summary should include all relevant information from both summary1 and summary2, organized in a clear and coherent manner, with a focus on the following key aspects:
+<task_description>
+As a Legal Clerk, your task is to review the updated combined summary, which integrates content two individual summaries (summary1 and summary2) of a police investigative report. This verification process aims to ensure that all relevant information from both summaries are contained within the current combined summary, such as full names, roles, badge numbers, specific events with dates, policy or rule violations, disciplinary actions, relevant evidence, legal actions, and outcomes related to the case from both sources.
+</task_description>
 
-    1. Names and roles of the main police officers involved in the case
-    2. The specific allegations of misconduct against the officers
-    3. Key events and actions taken during the investigation of the allegations
-    4. Important details about the evidence, witness statements, and findings related to the allegations
-    5. The outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
+<verification_guidelines>
+1. Comprehensive Information Integration:
+   • Ensure that all important details from both summaries, such as critical people, key facts, key events, and significant details, are accurately incorporated into the updated combined summary.
 
-Compare the combined summary against summary1, summary2, and the provided memory log to identify any areas for improvement, such as missing key details, events, or important information related to these five key aspects.
+2. Context Preservation:
+   • Verify that all of the important information from both summaries are preserved in the updated combined summary.
+
+3. Logical Flow:
+   • Evaluate the updated combined summary for logical flow and coherence, ensuring that the newly integrated information fits seamlessly into the existing narrative.
+   • If possible, order the information chronologically.
+
+4. Factual Accuracy:
+   • DO NOT include any details not explicitly stated in either summary.
+</verification_guidelines>
+
+<essential_information>
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
+
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
+b. Primary parties involved (full names, roles, badge numbers if applicable)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
+e. Main findings or decisions
+f. Significant evidence or testimonies
+g. Important outcomes or rulings
+h. Current status of the matter
+i. Any pending actions or future proceedings
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
+
+For each type of essential information classification, be specific when referring to people, places, and dates. 
+</essential_information>
+
+<thinking_process>
+Before verifying and updating the combined summary, consider:
+1. What are the key differences between the current combined summary and summary 1 and summary 2?
+2. Are there any new pieces of information in either summary 1 or summary 2 that are not in the current combined summary?
+3. How can I ensure the updated summary maintains a logical and chronological flow?
+3. Are there any contradictions or inconsistencies between the summaries that need to be addressed?
+</thinking_process>
+
+<warnings>
+- Do not include speculative information
+- Avoid including irrelevant details
+- Do not draw conclusions not explicitly stated in the summaries
+- Do not omit critical information from either summary
+- Ensure that all information is accurately attributed to the correct parties and events
+- Do not alter the meaning or context of any information when integrating it into the updated summary
+</warnings>
+
+<reference_materials>
 
 Memory Log:
 The memory log contains a running list of important facts that should be considered throughout the entire document, regardless of the specific page being analyzed. Keep these facts in mind when reviewing and updating the combined summary.
 {memory_log}
 
-Update the combined summary to ensure it:
+## Combined Summary (merged version of summary1 and summary2) ##: 
+{combined_summary}
 
-1. Includes all the critical information from summary1 and summary2 related to the names and roles of the main police officers involved in the case.
-2. Clearly states the specific allegations of misconduct against the officers.
-3. Captures the key events and actions taken during the investigation of the allegations.
-4. Incorporates important details about the evidence, witness statements, and findings related to the allegations.
-5. Provides the outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes.
-6. Aligns with the information in the memory log and resolves any inconsistencies, contradictions, or logical errors, ensuring that the information is coherent and logically consistent throughout.
+## Summary1 (first individual summary) ##: 
+{summary1}
 
-Given the context from the combined summary, summary1, summary2, and the memory log, generate an updated summary using bullet points.
+## Summary2 (second individual summary) ##: 
+{summary2}
+</reference_materials>
 
-The updated summary should follow a bullet point format, for example:
-
-- Point 1
-- Point 2
-- Point 3
-
-## Combined Summary (merged version of summary1 and summary2) ##: {combined_summary}
-## Summary1 (first individual summary) ##: {summary1}
-## Summary2 (second individual summary) ##: {summary2}
-
-Updated Summary:
+<output_instruction>
+Provide the updated combined summary below, ensuring that all relevant information from both the current combined summary and the new summary is accurately retained. If no updates are needed, return the current combined summary. Present the summary in a clear, bullet-point format, organized chronologically where possible:
+</output_instruction>
 """
+
 
 def combine_summaries(summaries, memory_log):
     # combiner_llm = ChatAnthropic(model_name="claude-3-haiku-20240307")
@@ -382,57 +504,83 @@ def longest_common_substring(s1, s2):
 
 
 memory_log_template = """
-As an AI assistant acting from the perspective of an attorney, update the memory log only when the new summary contains crucial information for understanding the police investigative files. Maintain an ideal memory log that captures the case's essential aspects.
+<task_description>
+As a Legal Clerk, your task is to review the new summary and update the memory log only when the new summary contains crucial information directly related to the main subject of the document. Maintain a concise memory log that focuses on the key aspects of the events, allegations, investigations, and outcomes described in the document.
+</task_description>
 
-Guidelines:
+<guidelines>
+1. Review and Compare:
+   • Carefully review the current memory log and the new summary.
+   • Determine if the new summary contains crucial information that is not already in the memory log.
 
-1. Review the current memory log and new summary to determine if an update is necessary.
-2. If the new summary contains crucial information not adequately captured, identify key details to include.
-3. Focus on maintaining a high-level understanding of the document's key aspects:
-   - Names and roles of main police officers
-   - Specific allegations of misconduct
-   - Key events and actions during the investigation
-   - Important evidence, witness statements, and findings
-   - Investigation outcome, including disciplinary actions, legal proceedings, or policy changes
+2. Identify Crucial Information:
+   • Focus on information specific to the main subject of the document.
+   • Look for key details related to events, allegations, investigations, and outcomes.
 
-Ensure that the following key details are always retained in the memory log:
-- Names of the main police officers involved in the case
-- Specific allegations of misconduct against the officers
-- Key dates, such as the start date of the investigation or the date of the alleged incident
-- Significant evidence, witness statements, or findings that directly support or refute the allegations
-- The final outcome of the investigation, including any disciplinary actions, legal proceedings, or policy changes
+3. Update Selectively:
+   • Only update the memory log if the new summary contains crucial information not already present.
+   • If updating, integrate the new information seamlessly into the existing log.
 
-These crucial details should be preserved in the memory log. They can be edited if additional information from the new summary will make the point clearer or more accurate.
+4. Maintain Conciseness:
+   • Keep the memory log focused and concise.
+   • Avoid redundancy or unnecessary details.
 
-4. Use clear, concise, and objective language. Maintain a neutral, unbiased perspective.
+5. Ensure Accuracy:
+   • Only include information that is directly stated in the document.
+   • Do not infer or speculate beyond what is explicitly mentioned.
 
-You must always output the contents of the memory log. Output your response in bullet point format. For example:
+6. Preserve Original Structure:
+   • If no update is necessary, reproduce the original memory log without changes.
+</guidelines>
 
-- Names and roles of main police officers:
-  - Officer 1
-  - Officer 2
+<essential_information>
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
 
-- Specific allegations of misconduct:
-  - Excessive use of force during arrest
-  - Falsifying police report
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
+b. Primary parties involved (full names, roles, badge numbers if applicable)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
+e. Main findings or decisions
+f. Significant evidence or testimonies
+g. Important outcomes or rulings
+h. Current status of the matter
+i. Any pending actions or future proceedings
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
 
-- Key dates:
-  - Incident date: January 1, 2023
-  - Investigation start date: January 5, 2023
+For each type of essential information classification, be specific when referring to people, places, and dates. 
+</essential_information>
 
-- Significant evidence and findings:
-  - Body camera footage shows excessive force
-  - Witness statements corroborate allegations
+<thinking_process>
+Before updating the memory log, consider:
+1. Does the new summary contain any crucial information not already in the memory log?
+2. How does this new information relate to the main subject of the document?
+3. Can this new information be integrated into the existing log without disrupting its flow?
+4. Is this information essential to understanding the key aspects of the case?
+5. Am I maintaining the conciseness of the log while including all crucial details?
+</thinking_process>
 
-- Investigation outcome:
-  - Officer 1 suspended without pay
-  - Internal Affairs investigation ongoing
+<warnings>
+- Do not add information that is not directly stated in the document
+- Avoid speculation or inference beyond what is explicitly mentioned
+- Do not remove or alter existing crucial information in the memory log
+- Ensure that any updates maintain the chronological and logical flow of events
+- Be cautious of potential inconsistencies between the new summary and existing log
+</warnings>
 
-## Current memory log ##: {memory_log}
+<reference_materials>
+## Original Memory Log ##
+{memory_log}
 
-## New summary ##: {summary}
+## New Summary ##
+{summary}
+</reference_materials>
 
-## Updated Memory Log ##:
+<output_instruction>
+Based on your review of the current memory log and the new summary, provide either an updated memory log incorporating the crucial new information, or reproduce the original memory log if no update is necessary. Ensure the output maintains a concise focus on key aspects of events, allegations, investigations, and outcomes related to the main subject of the document:
+</output_instruction>
 """
 
 def update_memory_log(memory_log, new_summary):
