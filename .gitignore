@@ -11,3 +11,4 @@ map/
 node_modules/
 myenv/
 *.png
+web/
