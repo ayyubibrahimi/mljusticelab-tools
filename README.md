@@ -1,4 +1,4 @@
-# Machine Learning Justice Lab
+# Machine Learning Justice Lab - Tools
 
 ## Introduction
 
