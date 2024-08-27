@@ -4,24 +4,27 @@ import json
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
-from langchain_openai import ChatOpenAI
 import multiprocessing
 from collections import namedtuple
 from functools import partial
-from dotenv import find_dotenv, load_dotenv
 import concurrent.futures
 from datetime import datetime
 import time
 import re
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import PCA
+import torch
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoModel
+from typing import List
+from langchain_google_genai import ChatGoogleGenerativeAI
+import torch.nn.functional as F
 
-load_dotenv(find_dotenv())
 
 Doc = namedtuple("Doc", ["page_content", "metadata"])
 
-llm = ChatAnthropic(model_name="claude-3-haiku-20240307", temperature=0)
+
+# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4", temperature=0)
+
+llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
 
 # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
@@ -32,224 +35,83 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 memory_log_template = """
-<task_description>
-As a Legal Clerk, your task is to review the new summary and update the memory log by appending crucial information that contributes to a better understanding of the main subject of the document. The goal is to create a comprehensive overview of the main subject from the first 10 and last 10 pages of the document.
+As a Legal Clerk, your task is to review the new summary and update the memory log only when the new summary contains crucial information directly related to the main subject of the document. Maintain a concise memory log that focuses on the key aspects of the events, allegations, investigations, and outcomes described in the document.
 </task_description>
 
 <guidelines>
 1. Review and Compare:
    • Carefully review the current memory log and the new summary.
-   • Identify crucial information in the new summary that is not already in the memory log.
+   • Determine if the new summary contains crucial information that is not already in the memory log.
 
-2. Update by Appending:
-   • Append new crucial information to the existing memory log.
-   • Integrate the new information coherently, maintaining a logical flow of events and details.
+2. Identify Crucial Information:
+   • Focus on information specific to the main subject of the document.
+   • Look for key details related to events, allegations, investigations, and outcomes.
 
-3. Maintain Comprehensiveness:
-   • Ensure the memory log provides a thorough overview of both the beginning and end of the document.
-   • Retain important information from earlier summaries while adding new details.
+3. Update Selectively:
+   • Only update the memory log if the new summary contains crucial information not already present.
+   • If updating, integrate the new information seamlessly into the existing log.
 
-4. Ensure Accuracy and Relevance:
+4. Maintain Conciseness:
+   • Keep the memory log focused and concise.
+   • Avoid redundancy or unnecessary details.
+
+5. Ensure Accuracy:
    • Only include information that is directly stated in the document.
-   • Avoid speculation or inference beyond what is explicitly mentioned.
+   • Do not infer or speculate beyond what is explicitly mentioned.
+
+6. Preserve Original Structure:
+   • If no update is necessary, reproduce the original memory log without changes.
 </guidelines>
 
 <essential_information>
-Ensure the memory log includes ALL of the following elements, if present:
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
 
-a. Document identification (e.g., case number, report type)
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
 b. Primary parties involved (full names, roles, badge numbers if applicable)
-c. Key legal issues, claims, charges, or arguments
-d. Critical events or incidents (with specific dates, times, and locations)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
 e. Main findings or decisions
 f. Significant evidence or testimonies
 g. Important outcomes or rulings
 h. Current status of the matter
 i. Any pending actions or future proceedings
-j. Allegations of misconduct and any associated information
-k. Disciplinary outcomes or their current status
-l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements)
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
 
-For each type of essential information, be specific when referring to people, places, and dates.
+For each type of essential information classification, be specific when referring to people, places, and dates. 
 </essential_information>
 
 <thinking_process>
 Before updating the memory log, consider:
-1. What new crucial information does the summary contain?
-2. How does this new information relate to or expand upon existing information in the memory log?
-3. Where in the chronology or structure of the memory log should this new information be placed?
+1. Does the new summary contain any crucial information not already in the memory log?
+2. How does this new information relate to the main subject of the document?
+3. Can this new information be integrated into the existing log without disrupting its flow?
+4. Is this information essential to understanding the key aspects of the case?
+5. Am I maintaining the conciseness of the log while including all crucial details?
 </thinking_process>
 
-<output_format>
-Present the summary using the following structure:
-- Main topic 1
-  • Sub-topic 1.1
-  • Sub-topic 1.2
-
-- Main events
-  • Sub-event 2.1
-  • Sub-event 2.2
-
-- Main persons
-  • Sub-person 3.1
-  • Sub-person 3.2
-
-- Main actions
-  • Sub-action 4.1
-  • Sub-action 4.2
-
-- Main legal issue
-  • Sub-legal ossue 5.1
-  • Sub-legal issue 5.2
-
-- Main legal procedure
-  • Sub-legal procedure 6.1
-  • Sub-legal procedure 6.2
-
-- Main allegations 
-  • Sub-allegation 7.1
-  • Sub-allegation  7.2
-
-- Main disiplinary outcomes
-  • Sub-disciplinary outcome 8.1
-  • Sub-disciplinary outcome 8.2
-
-</output_format>
-
-
 <warnings>
-- Do not remove or overwrite existing crucial information in the memory log
-- Ensure that updates maintain the chronological and logical flow of events
+- Do not add information that is not directly stated in the document
+- Avoid speculation or inference beyond what is explicitly mentioned
+- Do not remove or alter existing crucial information in the memory log
+- Ensure that any updates maintain the chronological and logical flow of events
 - Be cautious of potential inconsistencies between the new summary and existing log
-- Avoid redundancy while still maintaining a comprehensive overview
 </warnings>
 
 <reference_materials>
-Original Memory Log
+## Original Memory Log ##
 {memory_log}
-New Summary
+
+## New Summary ##
 {summary}
 </reference_materials>
 
 <output_instruction>
-Based on your review of the current memory log and the new summary, provide the updated memory log. Incorporate the crucial new information by appending it to the existing log in the appropriate sections. Ensure that the output maintains a comprehensive focus on key aspects of events, allegations, investigations, and outcomes related to the main subject of the document, covering both the beginning and end of the document.
-
-Begin your response with the following statement:
-"Updated Memory Log:"
-
-Then, provide the full text of the updated memory log, clearly indicating where new information has been added.
+Based on your review of the current memory log and the new summary, provide either an updated memory log incorporating the crucial new information, or reproduce the original memory log if no update is necessary. Ensure the output maintains a concise focus on key aspects of events, allegations, investigations, and outcomes related to the main subject of the document:
 </output_instruction>
 """
-
-# page_summary_template = """
-# <document_classification>
-# First, determine if this document is a legal document or another document type. Consider the following:
-# - Does it contain legal terminology, case numbers, or references to laws and regulations?
-# - Is it structured like a legal document (e.g., contracts, court filings, police reports)?
-# - Does it discuss legal proceedings, rights, or obligations?
-
-# Based on your analysis, classify this document as either:
-# 1. Legal Document
-# 2. Other Document Type
-# </document_classification>
-
-# <task_description>
-# Your task is to generate a comprehensive, bulletpoint summary of all the important information contained in the provided document excerpt. Extract all the key details presented in the current page. 
-# </task_description>
-
-
-# <legal_document_essential_information>
-# If the document is classified as a legal document, ensure the summary includes ALL of the following elements, if present:
-
-# b. Primary parties involved (full names, roles, badge numbers if applicable)
-# c. Key legal issues, claims, or charges
-# d. Critical events or incidents (with specific dates, times and locations)
-# e. Main findings or decisions
-# f. Significant evidence or testimonies
-# g. Important outcomes or rulings
-# h. Current status of the matter
-# i. Any pending actions or future proceedings
-# j. Allegations of misconduct and any associated information
-# k. Disciplinary outcomes or their current status
-# l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
-
-# For each type of essential information, be specific when referring to people, places, and dates. 
-# </legal_document_essential_information>
-
-
-# <other_document_type_guidelines>
-# If classified as Other Document Type, follow these guidelines:
-
-# Ensure the summary includes the following elements, if present:
-# b. Main topics or themes
-# c. Key individuals or organizations mentioned
-# d. Important dates, events, or milestones
-# e. Significant data or findings
-# f. Main arguments or conclusions
-# g. Any recommendations or future actions proposed
-# h. Relevant background information or context
-
-# </other_document_type_guidelines>
-
-# <thinking_process>
-# Before summarizing, consider:
-# 1. Is this a legal document or another document type?
-# 2. What are the main topics on this page?
-# 3. What context from the memory log is relevant?
-# 4. What are the most important pieces of information to extract based on the document type?
-# </thinking_process>
-
-# <output_format>
-# Present the summary using the following structure:
-# - Main topic 1
-#   • Sub-topic 1.1
-#   • Sub-topic 1.2
-
-# - Main events
-#   • Sub-event 2.1
-#   • Sub-event 2.2
-
-# - Main persons
-#   • Sub-person 3.1
-#   • Sub-person 3.2
-
-# - Main actions
-#   • Sub-action 4.1
-#   • Sub-action 4.2
-
-# - Main legal issue
-#   • Sub-legal ossue 5.1
-#   • Sub-legal issue 5.2
-
-# - Main legal procedure
-#   • Sub-legal procedure 6.1
-#   • Sub-legal procedure 6.2
-
-# - Main allegations 
-#   • Sub-allegation 7.1
-#   • Sub-allegation  7.2
-
-# - Main disiplinary outcomes
-#   • Sub-disciplinary outcome 8.1
-#   • Sub-disciplinary outcome 8.2
-
-# </output_format>
-
-# <warnings>
-# - Do not include speculative information
-# - Avoid summarizing irrelevant details
-# - Do not draw conclusions not explicitly stated in the text
-# </warnings>
-
-# <reference_materials>
-# Current Page:
-# {current_page}
-# </reference_materials>
-
-# <output_instruction>
-# First, state the document classification (Legal Document or Other Document Type) and provide a brief explanation for your decision. Then, generate the current page summary following the appropriate guidelines based on the classification.
-# </output_instruction>
-# """
 
 page_summary_template = """
 <task_description>
@@ -287,8 +149,7 @@ For each type of essential information classification, be specific when referrin
 <thinking_process>
 Before summarizing, consider:
 1. What are the main topics on this page?
-2. How does the information relate to previous pages?
-3. What context from the memory log is relevant?
+2. What are the principal components of this page?
 </thinking_process>
 
 <output_format>
@@ -318,7 +179,7 @@ Generate the current page summary below:
 """
 
 
-summary_template = """
+summary_template_for_memory_log = """
 <document_classification>
 First, determine if this document is a legal document or another document type. Consider the following:
 - Does it contain legal terminology, case numbers, or references to laws and regulations?
@@ -488,120 +349,11 @@ Current Summary:
 {current_summary}
 </reference documents>
 
-Please provide the enhanced summary below, with new information and corrections clearly marked.
+Please provide the enhanced summary below, with new information and corrections clearly marked, or the original summary if no changes are needed. 
 
-Enhanced Summary:
+Enhanced Summary or Original Summary:
 """
 
-# combine_template = """
-# <task_description>
-# Your task is to combine the provided summaries into a single, concise, and well-organized final summary for the given document. Your primary goal is to identify and preserve ONLY the most crucial information from both summaries, creating a focused summary that adheres strictly to the 6 bulletpoint limit per section. 
-# </task_description>
-
-# <guidelines>
-# 1. Critical Information Selection:
-#    • Identify and include ONLY the most important information from both summaries.
-#    • Prioritize key details that are essential to understanding the document's main points.
-#    • Use bullet points to capture these critical details, limited to 6 per section.
-
-# 3. Factual Accuracy:
-#    • Include only details explicitly stated in either summary.
-#    • If information is incomplete or unclear, maintain that ambiguity rather than making assumptions.
-
-# 4. Completeness vs. Conciseness Balance:
-#    • After combining, review both original summaries to ensure the most critical information has been included.
-#    • If any essential points are missing, evaluate their importance against existing points and replace less critical information if necessary.
-
-# 5. Strict Bulletpoint Limit:
-#    • Adhere rigorously to the 6 bulletpoint maximum for each section.
-#    • Continuously prioritize information to include only the most crucial points within this limit.
-# </guidelines>
-
-# <legal_document_essential_information>
-# If the document is classified as a legal document, prioritize including the following elements, if present and deemed most critical:
-# a. Primary parties involved (full names, roles, badge numbers if applicable)
-# b. Key legal issues, claims, or charges
-# c. Critical events or incidents (with specific dates, times and locations)
-# d. Main findings or decisions
-# e. Significant evidence or testimonies
-# f. Important outcomes or rulings
-# g. Current status of the matter
-# h. Any pending actions or future proceedings
-# i. Allegations of misconduct and any associated information
-# j. Disciplinary outcomes or their current status
-# k. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements)
-# Remember to prioritize and include only the most crucial elements within the 6 bulletpoint limit per section.
-# </legal_document_essential_information>
-
-# <thinking_process>
-# Before and during the combination of summaries, consider:
-# 1. Is this a legal document or another document type?
-# 2. What are the main topics covered across all summaries?
-# 3. Which pieces of information are absolutely crucial to understanding the document's core message or outcome?
-# 4. Are there any apparent differences in information between summaries?
-#    • How can I best merge complementary information into comprehensive bulletpoints?
-#    • If there are genuine conflicts, how can I consolidate these effectively within a single bulletpoint?
-# 5. How can I prioritize information to ensure I only include the 6 most important points for each section?
-# 6. Have I double-checked that the most critical information from both summaries is represented?
-# </thinking_process>
-
-# <prioritization_step>
-# Before creating the final summary:
-# 1. List all important points from both summaries.
-# 3. Rank these points in order of importance for each section.
-# 4. Select ONLY the top 6 most crucial points for each section.
-# 5. Use these selected points to create your final summary, ensuring you do not exceed 6 bulletpoints per section.
-# 6. Review your selection to ensure it captures the essence of the document effectively, including any consolidated conflicts.
-# </prioritization_step>
-
-# <warnings>
-# - Prioritize including only the most critical information within the 6 bulletpoint limit.
-# - Do not include speculative information or draw conclusions not explicitly stated in the summaries.
-# - Do not alter the meaning or context of any information when integrating it into the combined summary.
-# - Do not exceed the 6 bulletpoint limit for each section under any circumstances.
-# - If you find yourself with more than 6 points, critically evaluate and prioritize to include only the most crucial information.
-# </warnings>
-
-# <reference_materials>
-# Summary 1:
-# {summary_1}
-
-# Summary 2:
-# {summary_2}
-# </reference_materials>
-
-# <output_format>
-# Present the combined summary in the following format: 
-
-# **IMPORTANT: Each section MUST contain NO MORE THAN 6 bulletpoints.**
-
-# - Legal Issues, Claims, and Charges (EXACTLY 6 BULLETPOINTS)
-#   • Bulletpoint 1 
-#   • Bulletpoint 2 
-#   • Bulletpoint 3 
-#   • Bulletpoint 4
-#   • Bulletpoint 5
-#   • Bulletpoint 6
-
-# - Key Events and Incidents (EXACTLY 6 BULLETPOINTS)
-#   • Bulletpoint 1 
-#   • Bulletpoint 2 
-#   • Bulletpoint 3 
-#   • Bulletpoint 4
-#   • Bulletpoint 5
-#   • Bulletpoint 6
-
-# - Main Findings, Decisions and Actions (EXACTLY 6 BULLETPOINTS)
-#   • Bulletpoint 1 
-#   • Bulletpoint 2 
-#   • Bulletpoint 3 
-#   • Bulletpoint 4
-#   • Bulletpoint 5
-#   • Bulletpoint 6
-
-# Remember: Strictly adhere to the 6 bulletpoint requirement for each section. No more, no less. 
-# </output_format>
-# """
 
 combine_template = """
 <task_description>
@@ -804,6 +556,56 @@ Summary 2:
 </output_instruction>
 """
 
+condense_template = """
+<task_description>
+As a Legal Clerk, your task is to condense the summaries into a single summary.
+</task_description>
+
+<essential_information>
+Ensure the condensed summary includes ALL of the following elements (if present in the summary). First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summaries that you are condensing. 
+
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+b. Primary parties involved (full names, roles, badge numbers if applicable)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, charges, or arguments
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
+e. Main findings or decisions
+f. Significant evidence or testimonies
+g. Important outcomes or rulings
+h. Current status of the matter
+i. Any pending actions or future proceedings
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
+For each type of essential information classification, be specific when referring to people, places, and dates. 
+</essential_information>
+
+<thinking_process>
+Before condensing the summary, consider:
+1. What are the most critical pieces of information that must be retained?
+2. How can I organize the information to present a clear summary?
+4. How can I ensure that the condensed summary remains coherent and comprehensive?
+5. Are there any redundancies in the merged summary that can be eliminated?
+</thinking_process>
+
+<warnings>
+- Do not introduce new information not present in the merged summary
+- Avoid altering the meaning or context of any information during the condensing process
+- Do not omit any essential details, even if struggling to meet the 5-paragraph limit
+- Ensure that all information remains accurately attributed to the correct parties and events
+- Be cautious of potential inconsistencies and address them appropriately
+- Do not include speculative or inferential information
+</warnings>
+
+<reference_materials>
+## Input Summary ##
+{summaries}
+</reference_materials>
+
+<output_instruction>
+Provide the condensed summary below, ensuring that all essential information from the merged summary is retained, accurately presented, and organized in a clear, chronological, and logical manner. The condensed summary should not exceed 5 paragraphs:
+</output_instruction>
+"""
+
 
 final_combine_template = """
 <task_description>
@@ -970,56 +772,6 @@ First, confirm the document type (Legal Document or Other Document Type) based o
 </output_instruction>
 """
 
-condense_template = """
-<task_description>
-As a Legal Clerk, your task is to condense the summaries into a single summary.
-</task_description>
-
-<essential_information>
-Ensure the condensed summary includes ALL of the following elements (if present in the summary). First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summaries that you are condensing. 
-
-Some essential information that will contribute to a comprehensive summary include but are not limited to:
-b. Primary parties involved (full names, roles, badge numbers if applicable)
-j. Allegations of misconduct and any associated information
-c. Key legal issues, claims, charges, or arguments
-k. Disciplinary outcomes or their current status
-d. Critical events or incidents (with specific dates, times and locations)
-e. Main findings or decisions
-f. Significant evidence or testimonies
-g. Important outcomes or rulings
-h. Current status of the matter
-i. Any pending actions or future proceedings
-l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
-For each type of essential information classification, be specific when referring to people, places, and dates. 
-</essential_information>
-
-<thinking_process>
-Before condensing the summary, consider:
-1. What are the most critical pieces of information that must be retained?
-2. How can I organize the information to present a clear summary?
-4. How can I ensure that the condensed summary remains coherent and comprehensive?
-5. Are there any redundancies in the merged summary that can be eliminated?
-</thinking_process>
-
-<warnings>
-- Do not introduce new information not present in the merged summary
-- Avoid altering the meaning or context of any information during the condensing process
-- Do not omit any essential details, even if struggling to meet the 5-paragraph limit
-- Ensure that all information remains accurately attributed to the correct parties and events
-- Be cautious of potential inconsistencies and address them appropriately
-- Do not include speculative or inferential information
-</warnings>
-
-<reference_materials>
-## Input Summary ##
-{summaries}
-</reference_materials>
-
-<output_instruction>
-Provide the condensed summary below, ensuring that all essential information from the merged summary is retained, accurately presented, and organized in a clear, chronological, and logical manner. The condensed summary should not exceed 5 paragraphs:
-</output_instruction>
-"""
-
 improve_summary_template = """
 As a Legal Clerk, your task is to enhance the existing summary of a legal document by incorporating important information from the memory log. The current summary contains specific details, while the memory log provides high-level, important information. 
 Your goal is to improve the summary by adding only the most important missing information from the memory log without removing any existing content.
@@ -1064,16 +816,16 @@ Present the enhanced summary using the existing structure of the current summary
 
 Enhanced section:
 - Main topic 1
-  • Sub-topic 1.1
-  • Sub-topic 1.2
+  • [UNCHANGED] Sub-topic 1.1
+  • [CORRECTED] Sub-topic 1.2
 
 - Main topic 2
-  • Sub-topic 2.1
-  • Sub-topic 2.2
+  • [UNCHANGED] Sub-topic 2.1
+  • [ADDED] Sub-topic 2.2
 
 - Main topic 3
-  • Sub-topic 3.1
-  • Sub-topic 3.2
+  • [UNCHANGED] Sub-topic 3.1
+  • [UNCHANGED] Sub-topic 3.2
 
 Maintain this format throughout the summary, inserting new information where it fits best within the existing structure.
 </output_format>
@@ -1086,9 +838,9 @@ Memory Log:
 {memory_log}
 </reference documents>
 
-Please provide the enhanced summary below, with new information clearly marked.
+Please provide the enhanced summary below, with new information clearly marked, or the original summary if no changes are needed. 
 
-Enhanced Summary:
+Enhanced Summary or Original Summary:
 """
 
 organization_template = """
@@ -1123,14 +875,14 @@ When organizing the information:
 </relevance_and_coherence>
 
 <output_format>
-Present the combined summary in the following format: 
+Present the combined summary in the following format and under the following headers: 
 
-Legal Issues, Claims, and Charges 
+Legal Issues, Claims, Allegations, and Charges 
   • Bulletpoint 1 
   • Bulletpoint 2 
   • Bulletpoint 3 
 
-Key Events and Incidents
+Key Events, Incidents and Procedural Events
   • Bulletpoint 1 
   • Bulletpoint 2 
   • Bulletpoint 3 
@@ -1143,7 +895,7 @@ Main Findings, Decisions and Actions
 If, for example, there are multiple allegations listed for different persons, include them all in the same bulletpoint. 
 You may also include any other relevant information in the same bulletpoint by grouping similar information under the same bulletpoint.
 
-
+Limit your response to these three headers. If an important point does not fit exactly in one of the headers, include it under the header that is closest to it.
 </output_format>
 
 
@@ -1315,7 +1067,7 @@ def update_memory_log(memory_log, new_summary):
 
 
 def process_memory_log_page(docs, i, current_page, window_size, memory_log):
-    prompt_response = ChatPromptTemplate.from_template(summary_template)
+    prompt_response = ChatPromptTemplate.from_template(summary_template_for_memory_log)
     response_chain = prompt_response | llm | StrOutputParser()
 
     previous_page_ending = (
@@ -1382,53 +1134,125 @@ def process_file(filename, input_directory, output_directory, memory_log):
 
     return interval_summaries
 
+def custom_sentence_split(text: str) -> List[str]:
+    """
+    Split the input text into sentences using custom rules.
+    
+    Args:
+    text (str): The input text to be split into sentences.
+    
+    Returns:
+    List[str]: A list of sentences.
+    """
+    # Define abbreviations and other exceptions
+    abbreviations = r"(?:[A-Za-z]\.){2,}|[A-Z][a-z]*\."
+    
+    # Define sentence ending punctuation
+    sentence_end = r'[.!?]'
+    
+    # Split the text, keeping separators
+    segments = re.split(f'({sentence_end}|{abbreviations})', text)
+    
+    sentences = []
+    current_sentence = ""
+    
+    for segment in segments:
+        current_sentence += segment
+        
+        # Check if this segment ends a sentence
+        if re.search(sentence_end + r'\s*$', segment) and not re.match(abbreviations + r'\s*$', segment):
+            sentences.append(current_sentence.strip())
+            current_sentence = ""
+    
+    # Add any remaining text as a sentence
+    if current_sentence:
+        sentences.append(current_sentence.strip())
+    
+    # Remove empty sentences
+    sentences = [sent for sent in sentences if sent]
+    
+    return sentences
 
-def pca_summarize(text, min_component_words=5, max_components=3):
-    # Split text into sentences
-    sentences = [sent.strip() for sent in text.split('.') if sent.strip()]
-    
-    # Filter sentences that are too short and keep track of their indices
-    valid_sentences = []
-    valid_indices = []
-    for i, sent in enumerate(sentences):
-        if len(sent.split()) >= min_component_words:
-            valid_sentences.append(sent)
-            valid_indices.append(i)
-    
-    if not valid_sentences:
-        return text  # Return original text if no valid sentences
 
-    vectorizer = TfidfVectorizer(stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(valid_sentences)
+class TransformerAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super().__init__()
+        self.multihead_attn = nn.MultiheadAttention(embed_dim, num_heads)
     
-    # Determine the number of components
-    n_components = min(
-        max_components,
-        len(valid_sentences) - 1,
-        tfidf_matrix.shape[1]
-    )
-    
-    if n_components == 0:
-        return text  # Return original text if we can't perform PCA
+    def forward(self, x):
+        attn_output, attn_weights = self.multihead_attn(x, x, x)
+        return attn_weights
 
-    pca = PCA(n_components=n_components)
-    pca_matrix = pca.fit_transform(tfidf_matrix.toarray())
-    sentence_scores = np.sum(np.square(pca_matrix), axis=1)
-    top_sentence_indices = sentence_scores.argsort()[-n_components:][::-1]
-    
-    # Create a dictionary to store the indices of principal components
-    pc_indices = {valid_indices[i]: True for i in top_sentence_indices}
-    
-    # Wrap principal components in tags
-    tagged_sentences = []
-    for i, sentence in enumerate(sentences):
-        if i in pc_indices:
-            tagged_sentences.append(f"<principal component>{sentence}</principal component>")
-        else:
-            tagged_sentences.append(sentence)
-    
-    return '. '.join(tagged_sentences) + '.'
+class AttentionBasedPrincipalComponents:
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
+        self.model.eval()
+        
+        # Initialize transformer-style attention
+        self.attention = TransformerAttention(self.model.config.hidden_size, num_heads=8)
 
+    def get_sentence_embeddings(self, sentences: List[str]) -> torch.Tensor:
+        embeddings = []
+        for sentence in sentences:
+            inputs = self.tokenizer(sentence, return_tensors="pt", padding=True, truncation=True)
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+            embeddings.append(outputs.last_hidden_state.mean(dim=1))
+        return torch.cat(embeddings, dim=0)
+
+    def compute_attention_scores(self, sentence_embeddings: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            attention_weights = self.attention(sentence_embeddings.unsqueeze(1)).squeeze(1)
+        
+        # Average attention weights across heads
+        attention_weights = attention_weights.mean(dim=0)
+        
+        # Normalize attention weights
+        attention_weights = F.softmax(attention_weights, dim=-1)
+        
+        return attention_weights
+
+    def compute_bidirectional_importance(self, attention_scores: torch.Tensor) -> torch.Tensor:
+        # Compute row-wise sum (how much each sentence attends to others)
+        row_importance = attention_scores.sum(dim=-1)
+        
+        # Compute column-wise sum (how much each sentence is attended to by others)
+        col_importance = attention_scores.sum(dim=-2)
+        
+        # Combine row-wise and column-wise importance
+        bidirectional_importance = row_importance + col_importance
+        
+        return bidirectional_importance
+
+    def identify_principal_components(self, text: str, num_components: int = 5) -> str:
+        sentences = custom_sentence_split(text)
+        
+        if len(sentences) <= num_components:
+            return text
+
+        sentence_embeddings = self.get_sentence_embeddings(sentences)
+        attention_scores = self.compute_attention_scores(sentence_embeddings)
+        
+        # Compute bidirectional importance scores
+        sentence_importance = self.compute_bidirectional_importance(attention_scores)
+        
+        # Get indices of top sentences
+        top_sentence_indices = sentence_importance.argsort(descending=True)[:num_components]
+        
+        # Create a dictionary to store the indices of principal components
+        pc_indices = {i.item(): True for i in top_sentence_indices}
+        
+        # Wrap principal components in tags
+        tagged_sentences = []
+        for i, sentence in enumerate(sentences):
+            if i in pc_indices:
+                tagged_sentences.append(f"<principal_component>{sentence}</principal_component>")
+            else:
+                tagged_sentences.append(sentence)
+        
+        return '. '.join(tagged_sentences) + '.'
+    
 def process_batch(batch, num_pages_to_concat, memory_log):
     summary_prompt = ChatPromptTemplate.from_template(page_summary_template)
     verification_prompt = ChatPromptTemplate.from_template(page_summary_verification_template)
@@ -1436,8 +1260,17 @@ def process_batch(batch, num_pages_to_concat, memory_log):
     summary_chain = summary_prompt | llm | StrOutputParser()
     verification_chain = verification_prompt | llm | StrOutputParser()
 
+    # Initialize the AttentionBasedPrincipalComponents object
+    principal_component_identifier = AttentionBasedPrincipalComponents()
+
     results = []
     i = 0
+    batch_number = 1
+
+    # Create a directory for the output files
+    output_dir = "augmented_texts"
+    os.makedirs(output_dir, exist_ok=True)
+
     while i < len(batch):
         concat_pages = []
         page_numbers = []
@@ -1451,11 +1284,26 @@ def process_batch(batch, num_pages_to_concat, memory_log):
         if concat_pages:
             original_document = " ".join(concat_pages)
             try:
-                augmented_text = pca_summarize(original_document)
+                # Use the new method to identify principal components
+                augmented_text = principal_component_identifier.identify_principal_components(original_document)
                 print(f"Augmented Text: {augmented_text}")
+
+                # Save the augmented text to a file
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"augmented_text_batch{batch_number}_pages{min(page_numbers)}-{max(page_numbers)}_{timestamp}.txt"
+                filepath = os.path.join(output_dir, filename)
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(f"Batch: {batch_number}\n")
+                    f.write(f"Pages: {min(page_numbers)}-{max(page_numbers)}\n")
+                    f.write(f"Timestamp: {timestamp}\n\n")
+                    f.write(augmented_text)
+                
+                print(f"Saved augmented text to: {filepath}")
+
             except Exception as e:
-                print(f"Error in PCA summarization: {str(e)}")
-            augmented_text = original_document # Use the full text if PCA fails
+                print(f"Error in principal component identification: {str(e)}")
+                augmented_text = original_document  # Use the full text if the method fails
         
             initial_summary = summary_chain.invoke({"current_page": augmented_text})
             
@@ -1472,13 +1320,15 @@ def process_batch(batch, num_pages_to_concat, memory_log):
         if not concat_pages:
             break
 
+        batch_number += 1
+
     return results
 
 def create_batches(docs, batch_size):
     return [docs[i : i + batch_size] for i in range(0, len(docs), batch_size)]
 
 
-def generate_summaries(docs, memory_log, batch_size=10, num_pages_to_concat=3):
+def generate_summaries(docs, memory_log, batch_size=10, num_pages_to_concat=2):
     batches = create_batches(docs, batch_size)
 
     results = []
@@ -1687,11 +1537,12 @@ def output_file_exists(filename, output_directory):
     final_summary_file = f"{base_name}_final_summary.txt"
     return any(file.endswith(final_summary_file) for file in os.listdir(output_directory))
 
+
 if __name__ == "__main__":
     start_time = time.time()
 
-    input_directory = "../../stage-1/data/output/spinoza"
-    output_directory = "../data/output"
+    input_directory = "../../ocr/data/output/test"
+    output_directory = "../data/output/test"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 

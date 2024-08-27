@@ -27,3 +27,7 @@
 **summary**
 1. Process in batches. Can we disregard certain batches based on whether it contains relevant info when compared to the memory log?
 
+
+## Vision
+1. Create labeled set for classification task to evaluate output
+2. Create labeled set for description task to evaluate output

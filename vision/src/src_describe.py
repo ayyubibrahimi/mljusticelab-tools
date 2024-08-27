@@ -13,12 +13,17 @@ from langchain_anthropic import ChatAnthropic
 from langchain.schema.messages import HumanMessage
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+
+
 
 # genai.configure(api_key=os.environ["AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4"])
 
 # model = genai.GenerativeModel('gemini-1.5-flash')
 
-chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4")
+# chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4")
+
+chat = ChatOpenAI(model="gpt-4o-mini", api_key="sk-wZIQ599Pbniu8a-_FCGwpuQ-z42darwuTEmsx_OsMiT3BlbkFJroHul_OnZR5OHUBAJASPM8xC56Or3G_Spbk9Ba-VUA")
 # chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=1024)
 
 load_dotenv(find_dotenv())
@@ -151,7 +156,7 @@ def get_page_description(base64_image):
     """Get a description of the page using Claude Haiku"""
     
     prompt = """
-    Describe this image from a comic book.
+    Provide a technical description of this image. 
 
     Write your description inside <image_analysis> tags. Begin your description with "The image depicts" or a similar phrase.
     """

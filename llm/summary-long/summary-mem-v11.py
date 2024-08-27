@@ -32,112 +32,81 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 memory_log_template = """
-<task_description>
-As a Legal Clerk, your task is to review the new summary and update the memory log by appending crucial information that contributes to a better understanding of the main subject of the document. The goal is to create a comprehensive overview of the main subject from the first 10 and last 10 pages of the document.
+As a Legal Clerk, your task is to review the new summary and update the memory log only when the new summary contains crucial information directly related to the main subject of the document. Maintain a concise memory log that focuses on the key aspects of the events, allegations, investigations, and outcomes described in the document.
 </task_description>
 
 <guidelines>
 1. Review and Compare:
    • Carefully review the current memory log and the new summary.
-   • Identify crucial information in the new summary that is not already in the memory log.
+   • Determine if the new summary contains crucial information that is not already in the memory log.
 
-2. Update by Appending:
-   • Append new crucial information to the existing memory log.
-   • Integrate the new information coherently, maintaining a logical flow of events and details.
+2. Identify Crucial Information:
+   • Focus on information specific to the main subject of the document.
+   • Look for key details related to events, allegations, investigations, and outcomes.
 
-3. Maintain Comprehensiveness:
-   • Ensure the memory log provides a thorough overview of both the beginning and end of the document.
-   • Retain important information from earlier summaries while adding new details.
+3. Update Selectively:
+   • Only update the memory log if the new summary contains crucial information not already present.
+   • If updating, integrate the new information seamlessly into the existing log.
 
-4. Ensure Accuracy and Relevance:
+4. Maintain Conciseness:
+   • Keep the memory log focused and concise.
+   • Avoid redundancy or unnecessary details.
+
+5. Ensure Accuracy:
    • Only include information that is directly stated in the document.
-   • Avoid speculation or inference beyond what is explicitly mentioned.
+   • Do not infer or speculate beyond what is explicitly mentioned.
+
+6. Preserve Original Structure:
+   • If no update is necessary, reproduce the original memory log without changes.
 </guidelines>
 
 <essential_information>
-Ensure the memory log includes ALL of the following elements, if present:
+Ensure the summary includes ALL of the following elements, if present. First and foremost, your objective is to return a comprehensive summary that will provide the user with a thorough understanding of the contents of the summary.
 
-a. Document identification (e.g., case number, report type)
+Some essential information that will contribute to a comprehensive summary include but are not limited to:
+a. Type and purpose of the legal document (e.g., police report, internal investigation)
 b. Primary parties involved (full names, roles, badge numbers if applicable)
-c. Key legal issues, claims, charges, or arguments
-d. Critical events or incidents (with specific dates, times, and locations)
+j. Allegations of misconduct and any associated information
+c. Key legal issues, claims, or charges
+k. Disciplinary outcomes or their current status
+d. Critical events or incidents (with specific dates, times and locations)
 e. Main findings or decisions
 f. Significant evidence or testimonies
 g. Important outcomes or rulings
 h. Current status of the matter
 i. Any pending actions or future proceedings
-j. Allegations of misconduct and any associated information
-k. Disciplinary outcomes or their current status
-l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements)
+l. Procedural events (e.g., filing of charges, hearings, notifications, motions, investigations, agreements, service of documents, compliance with legal requirements) 
 
-For each type of essential information, be specific when referring to people, places, and dates.
+For each type of essential information classification, be specific when referring to people, places, and dates. 
 </essential_information>
 
 <thinking_process>
 Before updating the memory log, consider:
-1. What new crucial information does the summary contain?
-2. How does this new information relate to or expand upon existing information in the memory log?
-3. Where in the chronology or structure of the memory log should this new information be placed?
+1. Does the new summary contain any crucial information not already in the memory log?
+2. How does this new information relate to the main subject of the document?
+3. Can this new information be integrated into the existing log without disrupting its flow?
+4. Is this information essential to understanding the key aspects of the case?
+5. Am I maintaining the conciseness of the log while including all crucial details?
 </thinking_process>
 
-<output_format>
-Present the summary using the following structure:
-- Main topic 1
-  • Sub-topic 1.1
-  • Sub-topic 1.2
-
-- Main events
-  • Sub-event 2.1
-  • Sub-event 2.2
-
-- Main persons
-  • Sub-person 3.1
-  • Sub-person 3.2
-
-- Main actions
-  • Sub-action 4.1
-  • Sub-action 4.2
-
-- Main legal issue
-  • Sub-legal ossue 5.1
-  • Sub-legal issue 5.2
-
-- Main legal procedure
-  • Sub-legal procedure 6.1
-  • Sub-legal procedure 6.2
-
-- Main allegations 
-  • Sub-allegation 7.1
-  • Sub-allegation  7.2
-
-- Main disiplinary outcomes
-  • Sub-disciplinary outcome 8.1
-  • Sub-disciplinary outcome 8.2
-
-</output_format>
-
-
 <warnings>
-- Do not remove or overwrite existing crucial information in the memory log
-- Ensure that updates maintain the chronological and logical flow of events
+- Do not add information that is not directly stated in the document
+- Avoid speculation or inference beyond what is explicitly mentioned
+- Do not remove or alter existing crucial information in the memory log
+- Ensure that any updates maintain the chronological and logical flow of events
 - Be cautious of potential inconsistencies between the new summary and existing log
-- Avoid redundancy while still maintaining a comprehensive overview
 </warnings>
 
 <reference_materials>
-Original Memory Log
+## Original Memory Log ##
 {memory_log}
-New Summary
+
+## New Summary ##
 {summary}
 </reference_materials>
 
 <output_instruction>
-Based on your review of the current memory log and the new summary, provide the updated memory log. Incorporate the crucial new information by appending it to the existing log in the appropriate sections. Ensure that the output maintains a comprehensive focus on key aspects of events, allegations, investigations, and outcomes related to the main subject of the document, covering both the beginning and end of the document.
-
-Begin your response with the following statement:
-"Updated Memory Log:"
-
-Then, provide the full text of the updated memory log, clearly indicating where new information has been added.
+Based on your review of the current memory log and the new summary, provide either an updated memory log incorporating the crucial new information, or reproduce the original memory log if no update is necessary. Ensure the output maintains a concise focus on key aspects of events, allegations, investigations, and outcomes related to the main subject of the document:
 </output_instruction>
 """
 
@@ -1064,16 +1033,16 @@ Present the enhanced summary using the existing structure of the current summary
 
 Enhanced section:
 - Main topic 1
-  • Sub-topic 1.1
-  • Sub-topic 1.2
+  • [UNCHANGED] Sub-topic 1.1
+  • [CORRECTED] Sub-topic 1.2
 
 - Main topic 2
-  • Sub-topic 2.1
-  • Sub-topic 2.2
+  • [UNCHANGED] Sub-topic 2.1
+  • [ADDED] Sub-topic 2.2
 
 - Main topic 3
-  • Sub-topic 3.1
-  • Sub-topic 3.2
+  • [UNCHANGED] Sub-topic 3.1
+  • [UNCHANGED] Sub-topic 3.2
 
 Maintain this format throughout the summary, inserting new information where it fits best within the existing structure.
 </output_format>
