@@ -22,9 +22,9 @@ import torch.nn.functional as F
 Doc = namedtuple("Doc", ["page_content", "metadata"])
 
 
-# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4", temperature=0)
+# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key="", temperature=0)
 
-llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="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", temperature=0)
+llm = ChatAnthropic(model_name="claude-3-haiku-20240307", api_key="", temperature=0)
 
 # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
