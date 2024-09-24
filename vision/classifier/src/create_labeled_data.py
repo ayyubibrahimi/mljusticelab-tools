@@ -41,7 +41,7 @@ def concatenate_pdfs(directory, output_file):
         pdf_writer.write(out_file)
 
 def main():
-    directory = '../data/input/archive' 
+    directory = '../data/archive' 
     output_csv = '../wrangle/combined_dataset.csv'
     output_pdf = '../wrangle/combined_dataset.pdf'
 

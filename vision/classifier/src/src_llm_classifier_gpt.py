@@ -23,17 +23,16 @@ LARGE_IMAGE_THRESHOLD = 3.7 * 1024 * 1024  # 5 megapixels
 TARGET_IMAGE_SIZE = (800, 800)  # Reduced from 1024x1024
 MAX_FILE_SIZE = 2 * 1024 * 1024
 
-INPUT_DIR = "../data/input/archive"
+INPUT_DIR = "../data/input"
 OUTPUT_DIR = "../data/output"
 
 
 # chat = ChatGoogleGenerativeAI(
-#     model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4"
+#     model="gemini-1.5-flash", 
 # )
 
 chat = ChatOpenAI(
     model="gpt-4o-mini",
-    api_key="sk-wZIQ599Pbniu8a-_FCGwpuQ-z42darwuTEmsx_OsMiT3BlbkFJroHul_OnZR5OHUBAJASPM8xC56Or3G_Spbk9Ba-VUA",
     temperature=0
 )
 
@@ -44,7 +43,6 @@ load_dotenv(find_dotenv())
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
 
 def preprocess_image(image):
     """Apply advanced preprocessing techniques to enhance overall image quality"""

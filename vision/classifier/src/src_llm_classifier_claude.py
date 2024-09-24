@@ -28,12 +28,11 @@ OUTPUT_DIR = "../data/output"
 
 
 chat = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", google_api_key="AIzaSyBo4QCK-ReBOeIh3OZ0JkDtYRyN_313ly4"
+    model="gemini-1.5-flash",
 )
 
 # chat = ChatOpenAI(
-#     model="gpt-4o-mini",
-#     api_key="sk-wZIQ599Pbniu8a-_FCGwpuQ-z42darwuTEmsx_OsMiT3BlbkFJroHul_OnZR5OHUBAJASPM8xC56Or3G_Spbk9Ba-VUA",
+#     model="gpt-4o-mini",,
 # )
 
 # chat = ChatAnthropic(model="claude-3-haiku-20240307")

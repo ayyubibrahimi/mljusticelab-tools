@@ -13,3 +13,6 @@ myenv/
 *.png
 web/
 *.jsonl
+evaluate/
+design/
+stage-1/

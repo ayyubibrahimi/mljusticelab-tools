@@ -34,7 +34,7 @@ While our pipeline has shown promising results with Claude Haiku, we're also eva
 
 This repository contains our evaluation results, comparing the performance of various models including LLAMA, CoCounsel, Claude, and Mixtral across different metrics for the summarization task. As we continue to develop and refine our additional tools, we will update this repository with new findings and performance metrics.
 
-## Summary stats
+## Summary stats from first eval
 | Metric | LLAMA |  |  | CoCounsel |  |  | Claude |  |  | Mixtral |  |  |
 |--------|-------|-------|-------|-----------|-------|-------|--------|-------|-------|---------|-------|-------|
 |        | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness |
@@ -47,7 +47,7 @@ This repository contains our evaluation results, comparing the performance of va
 | 75%    | 4.0   | 3.0   | 4.0   | 5.0       | 5.0   | 5.0   | 5.0    | 4.75  | 4.75  | 4.0     | 3.0   | 4.0   |
 | max    | 4.0   | 3.0   | 5.0   | 5.0       | 5.0   | 5.0   | 5.0    | 5.0   | 5.0   | 4.0     | 3.0   | 5.0   |
 
-## Ranked as the best summary
+## Ranked as the best summary from first eval
 | Model    | Count |
 |----------|-------|
 | LLAMA    | 0     |
@@ -55,10 +55,44 @@ This repository contains our evaluation results, comparing the performance of va
 | Claude   | 2     |
 | Mixtral  | 0     |
 
-## Proportion of summaries that were not approved
+## Proportion of summaries that were not approved from first eval
 | Model    | Proportion of Summaries Not Approved |
 |----------|------------------------------------|
 | LLAMA    | 80%                                |
 | CoCounsel| 20%                                |
 | Claude   | 30%                                |
 | Mixtral  | 60%                                |
+
+## Summary stats from second eval
+| Metric | cocounsel | | | | claude - non-condensed | | | | claude - condensed | | | | mixtral 22b | | | | llama 3 | | | | mixtral nemo | | | | llama 3.1 | | | | gemini 1.5 flash | | | |
+|--------|-----------|-----------|-----------|-----------|------------------------|-----------|-----------|-----------|-------------------|-----------|-----------|-----------|-------------|-----------|-----------|-----------|---------|-----------|-----------|-----------|---------------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-------------------|-----------|-----------|-----------|
+| | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average |
+| count | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 | 8.0 |
+| mean | 3.625 | 3.375 | 3.625 | 3.542 | 3.25 | 2.375 | 3.125 | 2.917 | 4.25 | 3.25 | 4.5 | 4.000 | 3.375 | 2.75 | 3.25 | 3.125 | 3.25 | 2.625 | 2.875 | 2.917 | 3.875 | 3.625 | 3.875 | 3.792 | 2.75 | 2.5 | 2.5 | 2.583 | 3.375 | 2.75 | 2.75 | 2.958 |
+| std | 1.188 | 1.302 | 1.188 | 1.226 | 1.581 | 1.768 | 1.126 | 1.492 | 0.707 | 1.165 | 0.535 | 0.802 | 1.408 | 1.282 | 1.282 | 1.324 | 1.282 | 1.188 | 0.354 | 0.941 | 0.641 | 1.061 | 0.991 | 0.898 | 0.886 | 1.069 | 0.535 | 0.830 | 0.744 | 1.035 | 0.886 | 0.888 |
+| min | 2.0 | 2.0 | 2.0 | 2.000 | 1.0 | 1.0 | 2.0 | 1.333 | 3.0 | 1.0 | 4.0 | 2.667 | 2.0 | 1.0 | 1.0 | 1.333 | 1.0 | 1.0 | 2.0 | 1.333 | 3.0 | 2.0 | 2.0 | 2.333 | 1.0 | 1.0 | 2.0 | 1.333 | 3.0 | 2.0 | 2.0 | 2.333 |
+| 25% | 2.75 | 2.0 | 2.75 | 2.500 | 2.5 | 1.0 | 2.0 | 1.833 | 4.0 | 3.0 | 4.0 | 3.667 | 2.0 | 2.0 | 2.75 | 2.250 | 3.0 | 2.0 | 3.0 | 2.667 | 3.75 | 3.0 | 3.75 | 3.500 | 2.75 | 1.75 | 2.0 | 2.167 | 3.0 | 2.0 | 2.0 | 2.333 |
+| 50% | 4.0 | 3.5 | 4.0 | 3.833 | 3.5 | 1.5 | 3.0 | 2.667 | 4.0 | 3.0 | 4.5 | 3.833 | 3.0 | 2.5 | 3.5 | 3.000 | 3.0 | 2.5 | 3.0 | 2.833 | 4.0 | 3.5 | 4.0 | 3.833 | 3.0 | 3.0 | 2.5 | 2.833 | 3.0 | 2.5 | 2.5 | 2.667 |
+| 75% | 4.25 | 4.25 | 4.25 | 4.250 | 4.25 | 3.5 | 4.0 | 3.917 | 5.0 | 4.0 | 5.0 | 4.667 | 5.0 | 3.25 | 4.0 | 4.083 | 3.5 | 3.0 | 3.0 | 3.167 | 4.0 | 4.25 | 4.25 | 4.167 | 3.0 | 3.0 | 3.0 | 3.000 | 3.25 | 3.0 | 3.25 | 3.167 |
+| max | 5.0 | 5.0 | 5.0 | 5.000 | 5.0 | 5.0 | 5.0 | 5.000 | 5.0 | 5.0 | 5.0 | 5.000 | 5.0 | 5.0 | 5.0 | 5.000 | 5.0 | 5.0 | 3.0 | 4.333 | 5.0 | 5.0 | 5.0 | 5.000 | 4.0 | 4.0 | 3.0 | 3.667 | 5.0 | 5.0 | 4.0 | 4.667 |
+
+## Ranked as the best summary from second eval
+| Model                  | Count |
+|------------------------|-------|
+| cocounsel              | 3     |
+| mixtral nemo           | 3     |
+| claude - condensed     | 1     |
+| claude - non-condensed | 1     |
+
+
+## Proportion of summaries that were not approved from second eval
+| model                  |   Proportion Not Approved |
+|------------------------|---------------------------|
+| claude - condensed     |                     0.125 |
+| mixtral nemo           |                     0.125 |
+| cocounsel              |                     0.25  |
+| gemini 1.5 flash       |                     0.375 |
+| llama 3                |                     0.375 |
+| claude - non-condensed |                     0.5   |
+| mixtral 22b            |                     0.5   |
+| llama 3.1              |                     0.625 |
