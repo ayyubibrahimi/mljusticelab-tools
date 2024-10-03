@@ -26,42 +26,7 @@ Our initial evaluations, focused on the summarization task, have yielded promisi
 
 ### Open-Source Model Evaluation
 
-While our pipeline has shown promising results with Claude Haiku, we're also evaluating open-source alternatives:
-
-- These models can be used with private endpoints, allowing for processing of sensitive documents that cannot be shared with large tech companies.
-- Currently, open-source models are performing less consistently compared to our primary model. This is likely because we recycled parameters originally crafted for Claude without significant adaptation for open-source models.
-- An alternative data processing pipeline has been developed specifically for these open-source models and is currently under evaluation.
-
 This repository contains our evaluation results, comparing the performance of various models including LLAMA, CoCounsel, Claude, and Mixtral across different metrics for the summarization task. As we continue to develop and refine our additional tools, we will update this repository with new findings and performance metrics.
-
-## Summary stats from first eval
-| Metric | LLAMA |  |  | CoCounsel |  |  | Claude |  |  | Mixtral |  |  |
-|--------|-------|-------|-------|-----------|-------|-------|--------|-------|-------|---------|-------|-------|
-|        | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness | Completeness | Correctness | Conciseness |
-| count  | 5.0   | 5.0   | 5.0   | 5.0       | 5.0   | 5.0   | 10.0   | 10.0  | 10.0  | 5.0     | 5.0   | 5.0   |
-| mean   | 3.0   | 2.4   | 3.4   | 3.8       | 4.0   | 4.4   | 4.1    | 3.5   | 3.9   | 3.0     | 2.2   | 3.6   |
-| std    | 1.0   | 0.55  | 1.14  | 1.30      | 1.41  | 0.89  | 1.10   | 1.27  | 0.99  | 1.0     | 0.84  | 1.14  |
-| min    | 2.0   | 2.0   | 2.0   | 2.0       | 2.0   | 3.0   | 2.0    | 2.0   | 2.0   | 2.0     | 1.0   | 2.0   |
-| 25%    | 2.0   | 2.0   | 3.0   | 3.0       | 3.0   | 4.0   | 3.25   | 2.25  | 3.25  | 2.0     | 2.0   | 3.0   |
-| 50%    | 3.0   | 2.0   | 3.0   | 4.0       | 5.0   | 5.0   | 4.5    | 3.5   | 4.0   | 3.0     | 2.0   | 4.0   |
-| 75%    | 4.0   | 3.0   | 4.0   | 5.0       | 5.0   | 5.0   | 5.0    | 4.75  | 4.75  | 4.0     | 3.0   | 4.0   |
-| max    | 4.0   | 3.0   | 5.0   | 5.0       | 5.0   | 5.0   | 5.0    | 5.0   | 5.0   | 4.0     | 3.0   | 5.0   |
-
-## Ranked as the best summary from first eval
-| Model    | Count |
-|----------|-------|
-| LLAMA    | 0     |
-| CoCounsel| 3     |
-| Claude   | 2     |
-| Mixtral  | 0     |
-
-## Proportion of summaries that were not approved from first eval
-| Model    | Proportion of Summaries Not Approved |
-|----------|------------------------------------|
-| LLAMA    | 80%                                |
-| CoCounsel| 20%                                |
-| Claude   | 30%                                |
-| Mixtral  | 60%                                |
 
 ## Summary stats from second eval
 | Metric | cocounsel | | | | claude - non-condensed | | | | claude - condensed | | | | mixtral 22b | | | | llama 3 | | | | mixtral nemo | | | | llama 3.1 | | | | gemini 1.5 flash | | | |
@@ -96,3 +61,34 @@ This repository contains our evaluation results, comparing the performance of va
 | claude - non-condensed |                     0.5   |
 | mixtral 22b            |                     0.5   |
 | llama 3.1              |                     0.625 |
+
+
+## Summary stats from first eval
+## Summary stats from first eval with averages
+| Metric | LLAMA |  |  |  | CoCounsel |  |  |  | Claude |  |  |  | Mixtral |  |  |  |
+|--------|-------|-------|-------|--------|-----------|-------|-------|--------|--------|-------|-------|--------|---------|-------|-------|--------|
+|        | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average | Completeness | Correctness | Conciseness | Average |
+| count  | 5.0   | 5.0   | 5.0   | 5.0    | 5.0       | 5.0   | 5.0   | 5.0    | 10.0   | 10.0  | 10.0  | 10.0   | 5.0     | 5.0   | 5.0   | 5.0    |
+| mean   | 3.0   | 2.4   | 3.4   | 2.93   | 3.8       | 4.0   | 4.4   | 4.07   | 4.1    | 3.5   | 3.9   | 3.83   | 3.0     | 2.2   | 3.6   | 2.93   |
+| std    | 1.0   | 0.55  | 1.14  | 0.90   | 1.30      | 1.41  | 0.89  | 1.20   | 1.10   | 1.27  | 0.99  | 1.12   | 1.0     | 0.84  | 1.14  | 0.99   |
+| min    | 2.0   | 2.0   | 2.0   | 2.0    | 2.0       | 2.0   | 3.0   | 2.33   | 2.0    | 2.0   | 2.0   | 2.0    | 2.0     | 1.0   | 2.0   | 1.67   |
+| 25%    | 2.0   | 2.0   | 3.0   | 2.33   | 3.0       | 3.0   | 4.0   | 3.33   | 3.25   | 2.25  | 3.25  | 2.92   | 2.0     | 2.0   | 3.0   | 2.33   |
+| 50%    | 3.0   | 2.0   | 3.0   | 2.67   | 4.0       | 5.0   | 5.0   | 4.67   | 4.5    | 3.5   | 4.0   | 4.0    | 3.0     | 2.0   | 4.0   | 3.0    |
+| 75%    | 4.0   | 3.0   | 4.0   | 3.67   | 5.0       | 5.0   | 5.0   | 5.0    | 5.0    | 4.75  | 4.75  | 4.83   | 4.0     | 3.0   | 4.0   | 3.67   |
+| max    | 4.0   | 3.0   | 5.0   | 4.0    | 5.0       | 5.0   | 5.0   | 5.0    | 5.0    | 5.0   | 5.0   | 5.0    | 4.0     | 3.0   | 5.0   | 4.0    |
+
+## Ranked as the best summary from first eval
+| Model    | Count |
+|----------|-------|
+| LLAMA    | 0     |
+| CoCounsel| 3     |
+| Claude   | 2     |
+| Mixtral  | 0     |
+
+## Proportion of summaries that were not approved from first eval
+| Model    | Proportion of Summaries Not Approved |
+|----------|------------------------------------|
+| LLAMA    | 80%                                |
+| CoCounsel| 20%                                |
+| Claude   | 30%                                |
+| Mixtral  | 60%                                |
