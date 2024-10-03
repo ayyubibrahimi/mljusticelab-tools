@@ -17,6 +17,9 @@ from transformers import AutoTokenizer, AutoModel
 from typing import List
 from langchain_google_genai import ChatGoogleGenerativeAI
 import torch.nn.functional as F
+from dotenv import find_dotenv, load_dotenv
+
+load_dotenv(find_dotenv())
 
 
 Doc = namedtuple("Doc", ["page_content", "metadata"])
@@ -1561,7 +1564,7 @@ def output_file_exists(filename, output_directory):
 if __name__ == "__main__":
     start_time = time.time()
 
-    input_directory = "../../ocr/data/output/test"
+    input_directory = "../../ocr/data/output/spinoza"
     output_directory = "../data/output/test"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

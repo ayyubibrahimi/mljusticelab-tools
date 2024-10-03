@@ -15,12 +15,14 @@ import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
-chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
-
-chat = ChatOpenAI(model="gpt-4o-mini",)
-# chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=1024)
 
 load_dotenv(find_dotenv())
+
+# chat = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+
+chat = ChatOpenAI(model="gpt-4o-mini")
+# chat = ChatAnthropic(model="claude-3-haiku-20240307", max_tokens=1024)
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
