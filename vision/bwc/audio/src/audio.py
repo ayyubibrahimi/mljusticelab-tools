@@ -103,25 +103,26 @@ def preprocess_audio(audio_path):
 
 def write_transcript_to_file(transcript, output_path):
     """
-    Writes the processed transcript to a text file without timestamps.
-    Appends 8 chunks before starting a new line.
+    Writes the processed transcript to a text file with timestamps.
+    Each chunk is written on a new line with formatted timestamps.
     """
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
-            chunk_count = 0
             for chunk in transcript:
-                f.write(f"{chunk['text']} ")
-                chunk_count += 1
-                if chunk_count % 8 == 0:
-                    f.write('\n')
+                start, end = chunk['timestamp']
+                text = chunk['text'].strip()
+                formatted_line = f"[{start:.2f} - {end:.2f}] {text}\n"
+                f.write(formatted_line)
+        print(f"Transcript successfully written to {output_path}")
     except Exception as e:
-        logging.error(f"Error writing transcript to {output_path}: {e}")
+        print(f"Error writing transcript to {output_path}: {e}")
+
 
 def setup_whisper_pipeline():
     """
     Sets up and returns the Whisper pipeline for transcription.
     """
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "mps:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
     model_id = "openai/whisper-large-v3"
