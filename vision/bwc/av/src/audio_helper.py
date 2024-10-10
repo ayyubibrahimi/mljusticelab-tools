@@ -2,10 +2,14 @@ import logging
 import tempfile
 import numpy as np
 from moviepy.editor import VideoFileClip
+import torch
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import time
 import librosa
 import soundfile as sf
 import scipy.signal
+
+logging.basicConfig(level=logging.INFO)
 
 def extract_audio_from_mp4(video_file_path):
     """
@@ -90,3 +94,36 @@ def preprocess_audio(audio_path):
     except Exception as e:
         logging.error(f"Error preprocessing audio {audio_path}: {e}")
         return audio_path
+
+
+def setup_whisper_pipeline():
+    """
+    Sets up and returns the Whisper pipeline for transcription.
+    """
+    device = "mps:0" if torch.cuda.is_available() else "cpu"
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    model_id = "openai/whisper-large-v3"
+
+    model = AutoModelForSpeechSeq2Seq.from_pretrained(
+        model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
+    )
+    model.to(device)
+
+    processor = AutoProcessor.from_pretrained(model_id)
+
+    pipe = pipeline(
+        "automatic-speech-recognition",
+        model=model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
+        max_new_tokens=128,
+        chunk_length_s=35,
+        batch_size=32,
+        return_timestamps=True,
+        torch_dtype=torch_dtype,
+        device=device,
+        generate_kwargs={"language": "english"},
+    )
+
+    return pipe
