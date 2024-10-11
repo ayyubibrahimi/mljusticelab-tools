@@ -7,6 +7,7 @@
 5. Does the video owner shoot a firearm or throw punches / other violence
 6. One thing we’re trying to figure out is how to quantify and compare the amount of time people are given  
 to comply. There was a study a few years ago analyzing the language and tone of how stops begin and where that encounter escalates to. “Escalated police stops of Black men are linguistically and psychologically distinct in their earliest moments” (https://www.pnas.org/doi/pdf/10.1073/pnas.2216162120). So long term, we’d like to be able to tell how long in an encounter before the cop gives an order and then how much time they allowed for compliance before using force. Then ideally we’d be able to compare that to an average (taken from many other encounters).
+7. For a given case, we have many versions of BWC footage. We're interested in the main officer. To do this, we need some sort of video classification task?
  
  #
  OOO:
