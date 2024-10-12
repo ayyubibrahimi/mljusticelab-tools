@@ -14,7 +14,6 @@ import scipy.signal
 logging.basicConfig(level=logging.INFO)
 
 def load_config():
-
     with open('config.json') as config_file:
         return json.load(config_file)
 
