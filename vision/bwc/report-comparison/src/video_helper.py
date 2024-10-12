@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image, ImageEnhance
 from langchain_openai import ChatOpenAI
 from langchain.schema.messages import HumanMessage
+from langchain_anthropic import ChatAnthropic
 import logging
 from dotenv import find_dotenv, load_dotenv
 
@@ -15,6 +16,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def setup_llm():
     return ChatOpenAI(model="gpt-4o-mini")
+
+# def setup_llm():
+#     return ChatAnthropic(model="claude-3-haiku-20240307")
+
 
 def preprocess_image(image):
     img_array = np.array(image)
@@ -44,20 +49,29 @@ def encode_frame(frame):
 def process_video_segment(video, start_time, end_time, chat):
     logging.info(f"Processing video segment: {start_time:.2f} - {end_time:.2f}")
     frames = []
-    for t in np.arange(start_time, end_time, 1.0):  # 1 frame per second
-        frame = video.get_frame(t)
-        pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    fps = 10  # 10 frames per second
+    duration = end_time - start_time
+    
+    for t in np.arange(0, duration, 1/fps):
+        frame_time = start_time + t
+        frame = video.get_frame(frame_time)
+        
+        # Convert frame to PIL Image
+        pil_image = Image.fromarray(frame)
+        
         processed_image = preprocess_image(pil_image)
         base64_frame = encode_frame(np.array(processed_image))
         frames.append(base64_frame)
+
+    print(f"Processed {len(frames)} frames for scene {start_time:.2f} - {end_time:.2f}")
 
     prompt = f"""
     Analyze the following sequence of frames from a video scene. 
     The scene starts at {start_time:.2f} seconds and ends at {end_time:.2f} seconds.
     
-    Summarize the scene.
+    Provide a technical description of these images, pay particular attention to the differences between each frame.
 
-    Write your summary inside <image_analysis> tags. Begin your description with "These images depict" or a similar phrase.
+    Write your description inside <image_analysis> tags. Begin your description with "The image depicts" or a similar phrase.
     """
 
     image_contents = [
