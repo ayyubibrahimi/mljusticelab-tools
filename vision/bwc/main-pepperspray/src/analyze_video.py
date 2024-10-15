@@ -1,4 +1,3 @@
-
 import base64
 import cv2
 import numpy as np
@@ -20,12 +19,12 @@ load_dotenv(find_dotenv())
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def setup_llm():
-    return ChatOpenAI(model="gpt-4o-mini")
-
-
 # def setup_llm():
-#     return ChatAnthropic(model="claude-3-haiku-20240307")
+#     return ChatOpenAI(model="gpt-4o-mini")
+
+
+def setup_llm():
+    return ChatAnthropic(model="claude-3-haiku-20240307")
 
 llm = setup_llm()
 
@@ -69,22 +68,18 @@ def encode_frame(frame):
     return base64.b64encode(buffer).decode("utf-8")
 
 image_prompt = """
-Analyze the current input. Does this input contain any interactions between individuals? 
-If there is an interaction between two or more people, classify the interaction into one of the following categories:
-
-1. Talking
-2. Arrest
-3. Use of force
-4. Standing
-5. No persons visible.
+Is anyone being sprayed with a canister? 
 
 Write your description inside <input_analysis> tags. Begin your description with "The input depicts" or a similar phrase.
 """
 
+
+
 verifier_template = """
 <task_description>
-Based on the explanation in the materials to analyze, determine whether or not the input describes an situation where use of force was used.
+Based on the explanation in the materials to analyze, determine whether or not the input describes an incident where force was used. 
 Return 'true', or 'false'. Do not return any additional explanation or commentary.
+Lean toward returning true, rather than false, if the input possibly describes an incident where force was used.
 </task_description>
 
 <materials_to_analyze>
@@ -111,7 +106,7 @@ def process_frames(frames_data):
         base64_frame = encode_frame(np.array(processed_image))
         base64_frames.append(base64_frame)
     
-    # Save the processed images to manually review
+    # Save the processed images
     output_dir = "../data/output"
     os.makedirs(output_dir, exist_ok=True)
     for t, img in zip(timestamps, processed_images):
@@ -146,16 +141,16 @@ def process_frames(frames_data):
         logging.error(f"Error in OpenAI API call for frames at times {[seconds_to_minutes_seconds(t) for t in timestamps]}: {str(e)}")
         return (timestamps, None, None)
 
-def process_video_segment(video_path, start_time, end_time, frames_per_context=1, max_workers=10):
-    # start_time = 113.00
-    # end_time = 115.00
+def process_video_segment(video_path, start_time, end_time, frames_per_context=2, max_workers=10):
+    start_time = 113.00
+    end_time = 115.00
 
     logging.info(f"Processing video segment: {seconds_to_minutes_seconds(start_time)} - {seconds_to_minutes_seconds(end_time)}")
     
     cap = cv2.VideoCapture(video_path)
     
     frames = []
-    for t in np.arange(start_time, end_time, 1):  # 0.01 second intervals works
+    for t in np.arange(start_time, end_time, 0.01):  # 0.05 second intervals for 20 frames per second
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
         ret, frame = cap.read()
         if not ret:
@@ -180,7 +175,7 @@ def process_video_segment(video_path, start_time, end_time, frames_per_context=1
                 logging.error(f"Frame batch processing generated an exception: {exc}")
 
     # Sort results by timestamp
-    results.sort(key=lambda x: x[0][0])  
+    results.sort(key=lambda x: x[0][0])  # Sort by the first timestamp in each batch
     
     # Convert timestamps to readable format
     readable_results = [
