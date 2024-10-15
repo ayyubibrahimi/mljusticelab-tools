@@ -160,7 +160,7 @@ def setup_whisper_pipeline():
         tokenizer=processor.tokenizer,
         feature_extractor=processor.feature_extractor,
         max_new_tokens=128,
-        chunk_length_s=35,
+        chunk_length_s=30,
         batch_size=16,
         return_timestamps=True,
         torch_dtype=torch_dtype,

@@ -4,7 +4,8 @@ import numpy as np
 from PIL import Image, ImageEnhance
 from langchain_openai import ChatOpenAI
 from langchain.schema.messages import HumanMessage
-from langchain_anthropic import ChatAnthropic
+# from langchain_anthropic import ChatAnthropic
+# from langchain_google_genai import ChatGoogleGenerativeAI
 import logging
 from dotenv import find_dotenv, load_dotenv
 
@@ -19,6 +20,9 @@ def setup_llm():
 
 # def setup_llm():
 #     return ChatAnthropic(model="claude-3-haiku-20240307")
+
+# def setup_llm():
+#     return ChatGoogleGenerativeAI(model="gemini-1.5-flash")
 
 
 def preprocess_image(image):
@@ -49,7 +53,7 @@ def encode_frame(frame):
 def process_video_segment(video, start_time, end_time, chat):
     logging.info(f"Processing video segment: {start_time:.2f} - {end_time:.2f}")
     frames = []
-    fps = 10  # 10 frames per second
+    fps = 100  # 10 frames per second
     duration = end_time - start_time
     
     for t in np.arange(0, duration, 1/fps):
@@ -66,10 +70,11 @@ def process_video_segment(video, start_time, end_time, chat):
     print(f"Processed {len(frames)} frames for scene {start_time:.2f} - {end_time:.2f}")
 
     prompt = f"""
-    Analyze the following sequence of frames from a video scene. 
-    The scene starts at {start_time:.2f} seconds and ends at {end_time:.2f} seconds.
-    
-    Provide a technical description of these images, pay particular attention to the differences between each frame.
+    Analyze the following sequence of frames from a video scene.
+
+    Think step by step about how the scene changes from one frame to the next.
+
+    Is someone being pepper sprayed? 
 
     Write your description inside <image_analysis> tags. Begin your description with "The image depicts" or a similar phrase.
     """
