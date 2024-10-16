@@ -14,6 +14,10 @@ import re
 from typing import List
 from langchain_openai import ChatOpenAI
 import sys
+from dotenv import find_dotenv, load_dotenv
+
+load_dotenv(find_dotenv())
+
 
 Doc = namedtuple("Doc", ["page_content", "metadata"])
 
@@ -1364,23 +1368,15 @@ def save_summaries_to_json(summary, output_file, start_page, end_page):
     return {"files": output_data}
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print(
-            "Please provide the path to the directory, the selected model, and the output path as command-line arguments."
-        )
-        sys.exit(1)
-
-    input_directory = sys.argv[1]
-    selected_model = sys.argv[2]
-    custom_template = sys.argv[3]
-    output_path = sys.argv[4]
+    input_directory = "../data/output"
+    custom_template = ""
+    output_path = "../data/output"
     output_data = []
 
     custom_template = str(custom_template)
     
     start_time = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
 
     try:
         for filename in os.listdir(input_directory):
@@ -1400,7 +1396,11 @@ if __name__ == "__main__":
                 
                 output_data.append(save_summaries_to_json(condensed_summary, filename, start_page, end_page))
 
-        with open(output_path, "w") as output_file:
+        # Write to a file with the original filename in the output directory
+        output_filename = os.path.basename(filename)
+        output_file_path = os.path.join(output_path, output_filename)
+        
+        with open(output_file_path, "w") as output_file:
             json.dump(output_data, output_file, indent=4)
 
         end_time = time.time()

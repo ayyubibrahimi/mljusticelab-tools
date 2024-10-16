@@ -68,28 +68,80 @@ def encode_frame(frame):
     _, buffer = cv2.imencode(".jpg", frame)
     return base64.b64encode(buffer).decode("utf-8")
 
-image_prompt = """
-Analyze the current input. Does this input contain any interactions between individuals? 
-If there is an interaction between two or more people, classify the interaction into one of the following categories:
 
-1. Talking
-2. Arrest
-3. Use of force
-4. Standing
-5. No persons visible.
 
-Write your description inside <input_analysis> tags. Begin your description with "The input depicts" or a similar phrase.
+image_template = """
+<task_description>
+You are a specialized analyst tasked with identifying potential use of force incidents in the input data. 
+Your goal is to provide a clear, concise, and objective description of the scene, focusing on elements that could indicate use of force.
+</task_description>
+
+<instructions>
+1. Describe the scene objectively, focusing on:
+   - Number of individuals present in the frame (You do not need to see the entire profile of a person in the frame to include them. Partial persons include just their hands, legs, feet, etc. For example, do you see a hand extending into view from the corner of the screen?)
+   - Positions and actions of individuals
+   - Any physical contact or interactions between individuals
+   - Presence of law enforcement officers or security personnel
+   - Visible equipment or tools (e.g., handcuffs, batons, firearms)
+   - Any signs of physical struggle or restraint
+
+2. Use precise, factual language. Avoid interpretations or subjective assessments.
+
+3. If the scene is unclear or ambiguous, state this explicitly.
+
+4. Prioritize information relevant to potential use of force scenarios.
+</instructions>
+
+<output_format>
+
+Provide your analysis in the following format:
+<scene_description>
+[Your objective description of the scene here]
+</scene_description>
+
+<potential_force_indicators>
+[List any elements that could potentially indicate use of force]
+</potential_force_indicators>
+
+</output_format>
 """
 
 verifier_template = """
 <task_description>
-Based on the explanation in the materials to analyze, determine whether or not the input describes an situation where use of force was used.
-Return 'true', or 'false'. Do not return any additional explanation or commentary.
+You are a specialized analyst tasked with determining whether a given scene description matches any use of force incidents described in an official report. 
+Your goal is to identify matches and return a list of matching elements.
 </task_description>
 
-<materials_to_analyze>
+<instructions>
+1. Carefully review the provided scene description and potential force indicators.
+2. Compare these elements to the types of force and incidents described in the official report.
+3. Determine if there is a match between the scene and any incident in the report. 
+</instructions>
+
+<scene_analysis>
 {input}
-</materials_to_analyze>
+</scene_analysis>
+
+<official_report>
+{report_text}
+</official_report>
+
+<output_format>
+
+Provide your analysis in the following format:
+<match_determination>
+[TRUE if there's a match, FALSE if there isn't]
+</match_determination>
+
+<matching_elements>
+- If there is a match, return a bulletpoint list of elements from the scene that match the report. 
+Do not speculate. Only consider matches that are explicitly present.
+Use precise, factual language. Avoid interpretations or subjective analysis. 
+
+- If there is no match, return "No matching elements"
+</matching_elementsn>
+
+</output_format>
 """
 
 def seconds_to_minutes_seconds(seconds):
@@ -97,7 +149,7 @@ def seconds_to_minutes_seconds(seconds):
     remaining_seconds = seconds % 60
     return f"{minutes:02d}:{remaining_seconds:05.2f}"
 
-def process_frames(frames_data):
+def process_frames(frames_data, report_text):
     timestamps, frames = zip(*frames_data)
     
     processed_images = []
@@ -131,31 +183,27 @@ def process_frames(frames_data):
             [
                 HumanMessage(
                     content=[
-                        {"type": "text", "text": image_prompt},
+                        {"type": "text", "text": image_template},
                         *image_contents
                     ]
                 )
             ]
         )
         verifier_response = ChatPromptTemplate.from_template(verifier_template)
-        verification = verifier_response.format(input=msg.content)
         final_chain = verifier_response | llm | StrOutputParser()
-        verification_result = final_chain.invoke({"input": msg.content})
+        verification_result = final_chain.invoke({"input": msg.content, "report_text": report_text})
         return (timestamps, msg.content, verification_result)
     except Exception as e:
         logging.error(f"Error in OpenAI API call for frames at times {[seconds_to_minutes_seconds(t) for t in timestamps]}: {str(e)}")
         return (timestamps, None, None)
 
-def process_video_segment(video_path, start_time, end_time, frames_per_context=1, max_workers=10):
-    # start_time = 113.00
-    # end_time = 115.00
-
+def process_video_segment(video_path, start_time, end_time, report_text, frames_per_context=1, time_step=1, max_workers=10):
     logging.info(f"Processing video segment: {seconds_to_minutes_seconds(start_time)} - {seconds_to_minutes_seconds(end_time)}")
     
     cap = cv2.VideoCapture(video_path)
     
     frames = []
-    for t in np.arange(start_time, end_time, 1):  # 0.01 second intervals works
+    for t in np.arange(start_time, end_time, time_step):  # Use the new time_step parameter here
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
         ret, frame = cap.read()
         if not ret:
@@ -169,7 +217,7 @@ def process_video_segment(video_path, start_time, end_time, frames_per_context=1
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_frames = {executor.submit(process_frames, frame_batch): frame_batch for frame_batch in frame_batches}
+        future_to_frames = {executor.submit(process_frames, frame_batch, report_text): frame_batch for frame_batch in frame_batches}
         for future in concurrent.futures.as_completed(future_to_frames):
             frame_batch = future_to_frames[future]
             try:
@@ -182,13 +230,17 @@ def process_video_segment(video_path, start_time, end_time, frames_per_context=1
     # Sort results by timestamp
     results.sort(key=lambda x: x[0][0])  
     
-    # Convert timestamps to readable format
-    readable_results = [
-        ([seconds_to_minutes_seconds(t) for t in timestamps], content, verification)
+  # Convert timestamps to readable format and structure the output
+    results = [
+        {
+            "timestamps": [seconds_to_minutes_seconds(t) for t in timestamps],
+            "scene_description": content,
+            "match_classification": verification
+        }
         for timestamps, content, verification in results
     ]
     
-    return readable_results
+    return results
 
-def analyze_video(video_path, start_time, end_time, frames_per_context=1):
-    return process_video_segment(video_path, start_time, end_time, frames_per_context)
+def analyze_video(video_path, start_time, end_time, frames_per_context, report_text, time_step=1):
+    return process_video_segment(video_path, start_time, end_time, report_text, frames_per_context, time_step)
