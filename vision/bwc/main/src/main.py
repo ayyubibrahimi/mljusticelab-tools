@@ -7,6 +7,7 @@ from read_audio import process_audio
 from analyze_video import analyze_video
 import ocr
 from analyze_report import load_and_split, create_memory_log, process_file, final_summarization, organize_final_summary, save_summaries_to_json
+from optimize_parameters import optimize_search_direction
 
 INPUT_AUDIO_DIR = "../../audio/data/output"
 OUTPUT_DIR = "../data/output"
@@ -24,7 +25,7 @@ def parse_timestamp(timestamp_str):
     return None, None
 
 def count_true_matches(video_results):
-    true_count = sum(1 for result in video_results if result['match_classification'].strip().split('\n')[1] == 'TRUE')
+    true_count = sum(1 for result in video_results if result['binary_classification'] == 'TRUE')
     return true_count, len(video_results)
 
 def process_pdf_files(input_dir, output_dir):
@@ -43,10 +44,8 @@ def process_pdf_files(input_dir, output_dir):
 
 def process_report_data(input_dir, output_dir):
     output_data = []
-    custom_template = ""
     
     start_time = time.time()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     try:
         for filename in os.listdir(input_dir):
@@ -143,10 +142,11 @@ def main():
                     
                     iteration = 0
                     max_iterations = 5
-                    time_step = 1  # Initial time step
+                    fps = 1 
+    
                     
                     while iteration < max_iterations:
-                        video_results = analyze_video(video_path, start_time, end_time, frames_per_context=1, report_text=report_text, time_step=time_step)
+                        video_results = analyze_video(video_path, start_time, end_time, frames_per_context=1, report_text=report_text, fps=fps)
                         
                         true_matches, total_matches = count_true_matches(video_results)
                         match_percentage = (true_matches / total_matches) * 100 if total_matches > 0 else 0
@@ -157,11 +157,11 @@ def main():
                             print("Reached 10% or more TRUE matches. Stopping iterations.")
                             break
                         
-                        # Adjust time window
-                        start_time -= 10
-                        end_time += 10
-                        time_step = max(0.01, time_step - 0.25)  
-                        print(f"Adjusting time window: start_time={start_time}, end_time={end_time}, time_step={time_step}")
+                        initial_step_size = 10  # Start with 10 seconds, adjust as needed
+                        start_time, end_time = optimize_search_direction(video_results, start_time, end_time, initial_step_size)
+
+                        fps = max(0.01, fps - 0.5)  
+                        print(f"Adjusting time window: start_time={start_time}, end_time={end_time}, fps={fps}")
 
                         iteration += 1
                     

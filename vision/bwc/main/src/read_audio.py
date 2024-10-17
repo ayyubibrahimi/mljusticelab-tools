@@ -48,7 +48,7 @@ def adjust_timestamps(results):
         start_time = float(match.group(1))
         
         # Subtract 60 seconds from start_time
-        new_start_time = max(0, start_time - 30)  # Ensure it doesn't go below 0
+        new_start_time = max(0, start_time - 25)  # Ensure it doesn't go below 0
         
         # Set end_time to 60 seconds more than the original start_time
         new_end_time = start_time + 10
