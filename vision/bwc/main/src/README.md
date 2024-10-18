@@ -20,5 +20,8 @@ Stage 3:
 Optimization qs:
 - We want to find an optimal timestep and number of frames per second based based on what's returned by the first iteration
 - We need to decide in which direction we search (inputs are start_time, end_time)
-- We need to determine how much much to increase the time interval param by (10s more, 20s more, 30s, etc) 
-- We need to determine how much to adjust the frames per second param
+
+
+- We need to determine how much much to increase the time interval param by (10s more, 20s more, 30s, etc). Make this dynamic.
+
+- We need to determine how much to adjust the frames per second param (can we only adjust in area around true positives after confirming that uping fps does not improve performance in areas where no true values are returned)

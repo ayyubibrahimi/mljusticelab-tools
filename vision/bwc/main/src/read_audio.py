@@ -75,6 +75,6 @@ def process_audio(input_path):
         }
     )
     print(f"ORIGINAL RESULTS {results}")
-    results = adjust_timestamps(results)
+    # results = adjust_timestamps(results)
     print(f"ADJUSTED RESULTS {results}")
     return results

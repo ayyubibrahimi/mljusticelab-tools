@@ -108,14 +108,26 @@ Provide your analysis in the following format:
 
 match_template = """
 <task_description>
-You are a specialized analyst tasked with determining whether a given scene description matches any use of force incidents described in an official report. 
-Your goal is to identify matches and return a list of matching elements.
+You are a specialized analyst tasked with determining whether a given scene description explicitly matches any use of force incidents described in an official report. 
+Your goal is to identify precise matches and return a list of matching elements.
 </task_description>
 
 <instructions>
-1. Carefully review the provided scene description and potential force indicators.
-2. Compare these elements to the types of force and incidents described in the official report.
-3. Determine if there is a match between the scene and any incident in the report. 
+1. Carefully review the provided scene. 
+2. Identify the specific types of force described in the official report.
+3. Determine if there a use of force type described in the report matches what you see in the scene 
+4. The mere presence of law enforcement officers or subjects does not indicate a use of force.
+
+Examples of matches:
+- Both the scene and report describe a person being peppersprayed 
+- Both the scene and report describe a person being restrained and the report mentions a person being restrained.
+- Both the scene and report describe a person being grabbed and the report mentions a person being grabbed.
+- Both the scene and report describe a person being arrested and the report mentions a person being arrested.
+- Both the scene and report describe a person being taseredand the report mentions a person being tasered
+
+Do not consider as matches:
+- Presence of officers without specific use of force actions
+- Verbal commands or interactions without use of force actions
 </instructions>
 
 <scene_analysis>
@@ -127,10 +139,11 @@ Your goal is to identify matches and return a list of matching elements.
 </official_report>
 
 <output_format>
-- If there is a match, return a bulletpoint list of elements from the scene that match the report. 
-Do not speculate. Only consider matches that are explicitly present.
-Use precise, factual language. Avoid interpretations or subjective analysis. 
-- If there is no match, return "No matching elements"
+- If there is a match between the use of force incident described in the report and the input scene, return a bulletpoint list of elements from the scene that match the use of force described in the report. 
+Do not speculate or interpret. Only list the uses of force that are present in both the scene and report.
+Use precise, factual language. Avoid subjective analysis. 
+
+- If there is no explicit match, return "No matching elements"
 </output_format>
 """
 
@@ -222,7 +235,7 @@ def process_video_segment(video_path, start_time, end_time, report_text, frames_
     cap = cv2.VideoCapture(video_path)
     
     frames = []
-    for t in np.arange(start_time, end_time, fps): 
+    for t in np.arange(start_time, end_time, 1/fps):  # Change this line
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
         ret, frame = cap.read()
         if not ret:

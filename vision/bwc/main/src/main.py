@@ -143,7 +143,7 @@ def main():
                     iteration = 0
                     max_iterations = 5
                     fps = 1 
-    
+                    initial_step_size = 30 
                     
                     while iteration < max_iterations:
                         video_results = analyze_video(video_path, start_time, end_time, frames_per_context=1, report_text=report_text, fps=fps)
@@ -157,10 +157,10 @@ def main():
                             print("Reached 10% or more TRUE matches. Stopping iterations.")
                             break
                         
-                        initial_step_size = 10  # Start with 10 seconds, adjust as needed
+              
                         start_time, end_time = optimize_search_direction(video_results, start_time, end_time, initial_step_size)
 
-                        fps = max(0.01, fps - 0.5)  
+                        fps += 1  
                         print(f"Adjusting time window: start_time={start_time}, end_time={end_time}, fps={fps}")
 
                         iteration += 1
