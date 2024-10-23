@@ -18,10 +18,16 @@ Stage 3:
 - If the time interval is not correct, step to a different time interval and/or increase the number of frames per second 
 
 Optimization qs:
-- We want to find an optimal timestep and number of frames per second based based on what's returned by the first iteration
-- We need to decide in which direction we search (inputs are start_time, end_time)
+Thought 1:
+- We want to find an optimal timestep and number of frames per second based based on what's returned by the first iteration.
 
+Thought 2:
+- We need to decide in which direction we search (inputs are start_time, end_time). 
+- Currently, we can receive signal about which direction to step depending on whether or not a given frame contains data of interest. 
+For example, if the image contains a taser, True will be returned. The next iteration will step toward the time interval where we see True values. How much we step in this direction depends on the density of True values. If there are no True values, we step in both directions. 
 
+Thought 3:
 - We need to determine how much much to increase the time interval param by (10s more, 20s more, 30s, etc). Make this dynamic.
 
+Thought 4:L
 - We need to determine how much to adjust the frames per second param (can we only adjust in area around true positives after confirming that uping fps does not improve performance in areas where no true values are returned)
