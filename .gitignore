@@ -16,3 +16,6 @@ web/
 evaluate/
 design/
 stage-1/
+*.txt
+ft/
+creds/
