@@ -11,7 +11,6 @@ from dotenv import find_dotenv, load_dotenv
 import concurrent.futures
 from datetime import datetime
 import time
-
 load_dotenv(find_dotenv())
 
 Doc = namedtuple("Doc", ["page_content", "metadata"])

@@ -19,3 +19,9 @@ stage-1/
 *.txt
 ft/
 creds/
+adapters/
+archive/
+*.zip
+*.pickle
+*.log
+*.safetensors

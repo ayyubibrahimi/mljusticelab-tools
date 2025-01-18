@@ -157,7 +157,7 @@ def main():
     azurelogger.setLevel(logging.ERROR)
 
     input_directory = "../data/input/"
-    output_directory = "../data/output"
+    output_directory = "../data/input"
     endpoint, key = getcreds()
     client = DocClient(endpoint, key)
 

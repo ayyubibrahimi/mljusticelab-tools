@@ -25,6 +25,7 @@ model.to(device)
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
+
 page_citation_template = """
 Your task is to identify which page number contains the source content for the given bulletpoint.
 
@@ -403,6 +404,7 @@ def parse_page_numbers(page_info):
             
     return cleaned_pages or ["UNKNOWN"]
 
+
 def process_citations(df, citations_data):
     """
     Process each row in the DataFrame to add citations
@@ -458,11 +460,14 @@ def process_citations(df, citations_data):
 
 def extract_sentences(text):
     """
-    Extract individual sentences from bullet-pointed text.
+    Extract individual sentences from text by splitting on newlines,
+    excluding headers in the format **word word**
     """
-    sentences = [s.strip() for s in text.split('•') if s.strip()]
+    # Split by both single and double newlines
+    sentences = [s.strip() for s in text.replace('\n\n', '\n').split('\n') if s.strip()]
     sentences = [' '.join(s.split()) for s in sentences]
     return sentences
+
 
 def read_tbl(json_path):
     """
@@ -488,8 +493,9 @@ def read_tbl(json_path):
 
 if __name__ == "__main__":
     # File paths
-    json_path = "../../summary/data/output/summary_20241226_144919.json"
-    citations_path = "../../summary/data/output/complete/citations.json"
+    json_path = "../../summary/data/output/summary.json"
+    citations_path = "../../summary/data/output/citations.json"
+
     
     # Read input files
     df = read_tbl(json_path)
